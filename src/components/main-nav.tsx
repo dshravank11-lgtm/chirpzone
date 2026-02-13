@@ -34,8 +34,10 @@ export function MainNav({ notifications, friendRequests, messages }: MainNavProp
     <div className="h-full flex flex-col w-full bg-card border-r shadow-lg">
       {/* Branding section */}
       <div className="p-8 border-b">
+        <Link href='/'>
         <h1 className="text-4xl font-bold text-[#ff990a] font-sans">Chirp.</h1>
         <p className="text-lg text-muted-foreground mt-2">Connect, share, chirp!</p>
+        </Link>
       </div>
 
       {/* Navigation Links */}

@@ -98,3 +98,28 @@
 ::-webkit-scrollbar-thumb:hover {
   background: #ff8c00;
 }
+
+.swirling-dragon-effect {
+  position: relative;
+  display: inline-block;
+  padding-right: 25px; /* Make space for the dragon */
+}
+
+.swirling-dragon-effect::after {
+  content: '🐉';
+  position: absolute;
+  top: 50%;
+  right: 0;
+  font-size: 20px;
+  transform: translateY(-50%);
+  animation: swirl 4s linear infinite;
+}
+
+@keyframes swirl {
+  0% {
+    transform: translateY(-50%) rotate(0deg) translateX(10px) rotate(0deg);
+  }
+  100% {
+    transform: translateY(-50%) rotate(360deg) translateX(10px) rotate(-360deg);
+  }
+}

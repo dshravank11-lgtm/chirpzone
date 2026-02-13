@@ -91,6 +91,8 @@ export interface User {
     };
 }
 
+
+
 // --- Auth Functions Modified ---
 export const signUp = async (email, password, firstName, lastName) => {
     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
@@ -763,63 +765,274 @@ export const getLikedPosts = async (userId) => {
 
 
 // --- Comment Functions -- -
-// Update the addComment function in firebase.ts
-export const addComment = async (postId, userId, text) => {
-    const userRef = doc(db, 'users', userId);
-    
-    return await runTransaction(db, async (transaction) => {
-        // Get user data first
-        const userDoc = await transaction.get(userRef);
-        if (!userDoc.exists()) throw new Error("User not found");
+export const addComment = async (postId: string, userId: string, text: string) => {
+  const userRef = doc(db, 'users', userId);
+  const commentsRef = collection(db, 'comments');
+  
+  // Trim and validate text FIRST (outside transaction)
+  const trimmedText = text.trim();
+  if (!trimmedText) {
+      throw new Error("Comment cannot be empty");
+  }
+  
+  if (trimmedText.length > 500) {
+      throw new Error("Comment is too long (max 500 characters)");
+  }
+  
+  // Use a retry mechanism for transaction conflicts
+  const MAX_RETRIES = 3;
+  let lastError: any = null;
+  
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+      try {
+          return await runTransaction(db, async (transaction) => {
+              // --- ALL CHECKS INSIDE TRANSACTION ---
+              
+              // 1. Get user data
+              const userDoc = await transaction.get(userRef);
+              if (!userDoc.exists()) {
+                  throw new Error("Your account wasn't found. Please try logging in again.");
+              }
 
-        const userData = userDoc.data();
-        const userProfile = { id: userDoc.id, ...userData };
-        
-        // Initialize chirpScore if not exists
-        const currentChirpScore = userData.chirpScore || 0;
-        
-        const today = new Date().toISOString().split('T')[0];
-        const commentCount = userData.dailyStats?.[today]?.comments || 0;
+              const userData = userDoc.data();
+              const userProfile = { id: userDoc.id, ...userData };
+              
+              // 2. Get post data
+              const postRef = doc(db, 'posts', postId);
+              const postDoc = await transaction.get(postRef);
+              
+              if (!postDoc.exists()) {
+                  throw new Error("This post no longer exists.");
+              }
+              
+              // 3. Check if post comments are disabled
+              const postData = postDoc.data();
+              if (postData.commentsDisabled) {
+                  throw new Error("Comments have been disabled for this post.");
+              }
+              
+              // 4. Check for recent duplicate comments (INSIDE transaction)
+              const recentCommentsQuery = query(
+                  commentsRef, 
+                  where("postId", "==", postId),
+                  where("authorId", "==", userId),
+                  orderBy('createdAt', 'desc')
+              );
+              
+              const recentSnapshot = await getDocs(recentCommentsQuery);
+              
+              if (!recentSnapshot.empty) {
+                  // Check last 5 comments for duplicates
+                  const recentComments = recentSnapshot.docs.slice(0, 5);
+                  
+                  // Check for exact duplicate content
+                  const hasExactDuplicate = recentComments.some(doc => {
+                      const commentData = doc.data();
+                      return commentData.text === trimmedText;
+                  });
+                  
+                  if (hasExactDuplicate) {
+                      throw new Error("You've already posted this exact comment recently. Try saying something different!");
+                  }
+                  
+                  // Check time between comments (2 second cooldown)
+                  const lastComment = recentComments[0]?.data();
+                  const lastCommentTime = lastComment?.createdAt?.toDate();
+                  const now = new Date();
+                  
+                  if (lastCommentTime) {
+                      const timeSinceLastComment = now.getTime() - lastCommentTime.getTime();
+                      
+                      if (timeSinceLastComment < 2000) {
+                          const secondsLeft = Math.ceil((2000 - timeSinceLastComment) / 1000);
+                          throw new Error(`Please wait ${secondsLeft} more second${secondsLeft > 1 ? 's' : ''} before posting another comment`);
+                      }
+                      
+                      // Check for rapid commenting (5 comments in 30 seconds)
+                      if (recentComments.length >= 5) {
+                          const oldestComment = recentComments[recentComments.length - 1].data();
+                          const oldestCommentTime = oldestComment.createdAt?.toDate();
+                          
+                          if (oldestCommentTime) {
+                              const timeWindow = now.getTime() - oldestCommentTime.getTime();
+                              if (timeWindow < 30000) {
+                                  throw new Error("You're commenting too quickly. Please slow down!");
+                              }
+                          }
+                      }
+                  }
+              }
+              
+              // 5. Check user daily comment limits
+              const currentChirpScore = userData.chirpScore || 0;
+              const today = new Date().toISOString().split('T')[0];
+              const commentCount = userData.dailyStats?.[today]?.comments || 0;
+              const MAX_DAILY_COMMENTS = 15;
+              
+              if (commentCount >= MAX_DAILY_COMMENTS) {
+                  throw new Error(`You've reached your daily comment limit (${MAX_DAILY_COMMENTS}). Come back tomorrow!`);
+              }
 
-        // Prepare comment data
-        const commentData = {
-            postId,
-            authorId: userId,
-            author: {
-                name: userProfile.name,
-                username: userProfile.username,
-                avatarUrl: userProfile.avatarUrl,
-                nameFont: userProfile.nameFont,
-                nameColor: userProfile.nameColor,
-                nameEffect: userProfile.nameEffect,
-            },
-            text,
-            createdAt: serverTimestamp(),
-        };
+              // 6. Prepare comment data
+              const commentData = {
+                  postId,
+                  authorId: userId,
+                  author: {
+                      id: userId,
+                      name: userProfile.name,
+                      username: userProfile.username,
+                      avatarUrl: userProfile.avatarUrl,
+                      nameFont: userProfile.nameFont,
+                      nameColor: userProfile.nameColor,
+                      nameEffect: userProfile.nameEffect,
+                  },
+                  text: trimmedText,
+                  likes: 0,
+                  likedBy: [],
+                  replyCount: 0,
+                  isEdited: false,
+                  createdAt: serverTimestamp(),
+                  updatedAt: serverTimestamp(),
+              };
 
-        // Add comment
-        const commentRef = await addDoc(collection(db, 'comments'), commentData);
-        
-        // 1. Handle Streak
-        const streakInfo = await updateStreak(userId);
+              // 7. Add comment
+              const commentRef = doc(commentsRef); // Create a document reference
+              transaction.set(commentRef, commentData);
+              
+              // 8. Update post comment count
+              const currentComments = postData.commentsCount || 0;
+              transaction.update(postRef, {
+                  commentsCount: currentComments + 1,
+                  updatedAt: serverTimestamp(),
+              });
+              
+              // 9. Update streak (call updateStreak but handle within transaction)
+              let streakUpdated = false;
+              const lastActivity = userData.lastActivity ? userData.lastActivity.toDate() : null;
+              let newStreak = userData.streak || 0;
+              let streakScoreIncrement = 0;
+              
+              if (lastActivity) {
+                  const now = new Date();
+                  const diff = now.getTime() - lastActivity.getTime();
+                  const hours = diff / (1000 * 60 * 60);
 
-        // 2. Handle Points (Max 15 per day = 15 comments @ 1pt each)
-        let scoreIncrement = 0;
-        if (commentCount < 15) {
-            scoreIncrement = 1;
-        }
+                  if (hours > 48) {
+                      newStreak = 1; 
+                      streakScoreIncrement = 20;
+                      streakUpdated = true;
+                  } else if (now.getDate() !== lastActivity.getDate()) {
+                      newStreak++;
+                      streakScoreIncrement = 20;
+                      streakUpdated = true;
+                  }
+              } else {
+                  newStreak = 1;
+                  streakScoreIncrement = 20;
+                  streakUpdated = true;
+              }
 
-        // Update user's chirpScore and daily stats
-        transaction.update(userRef, {
-            chirpScore: currentChirpScore + scoreIncrement,
-            [`dailyStats.${today}.comments`]: increment(1)
-        });
-        
-        return { 
-            comment: { id: commentRef.id, ...commentData, createdAt: new Date() }, 
-            streakInfo 
-        };
-    });
+              // 10. Award points for comment
+              let scoreIncrement = 0;
+              let pointsAwarded = 0;
+              
+              if (commentCount < MAX_DAILY_COMMENTS) {
+                  scoreIncrement = 1;
+                  pointsAwarded = 1;
+              }
+              
+              const totalScoreIncrement = scoreIncrement + streakScoreIncrement;
+              const remainingDailyComments = MAX_DAILY_COMMENTS - (commentCount + 1);
+              
+              // 11. Update user document
+              transaction.update(userRef, {
+                  chirpScore: increment(totalScoreIncrement),
+                  streak: newStreak,
+                  lastActivity: serverTimestamp(),
+                  [`dailyStats.${today}.comments`]: increment(1),
+                  [`dailyStats.${today}.lastCommentAt`]: serverTimestamp(),
+              });
+
+              // Return success info
+              return { 
+                  success: true,
+                  comment: { 
+                      id: commentRef.id, 
+                      ...commentData, 
+                      createdAt: new Date(),
+                      dailyStats: {
+                          today: today,
+                          commentsToday: commentCount + 1,
+                          remainingComments: remainingDailyComments >= 0 ? remainingDailyComments : 0,
+                          pointsEarned: pointsAwarded,
+                          streakPoints: streakScoreIncrement,
+                      }
+                  }, 
+                  streakInfo: {
+                      streak: newStreak,
+                      streakUpdated,
+                  },
+                  notification: {
+                      message: pointsAwarded > 0 
+                          ? `+${pointsAwarded} point! ${remainingDailyComments} comments left today` 
+                          : "Daily comment limit reached",
+                      type: pointsAwarded > 0 ? "success" : "info"
+                  }
+              };
+          });
+          
+      } catch (error: any) {
+          lastError = error;
+          
+          // Check if it's a transaction conflict error
+          if (error.code === 'aborted' || 
+              error.message.includes('version') || 
+              error.message.includes('concurrent')) {
+              
+              console.warn(`Transaction conflict on attempt ${attempt}, retrying...`);
+              
+              // Wait before retrying (exponential backoff)
+              await new Promise(resolve => 
+                  setTimeout(resolve, Math.pow(2, attempt) * 100)
+              );
+              
+              continue; // Try again
+          }
+          
+          // If it's not a transaction conflict, re-throw immediately
+          console.error("Error in addComment:", error);
+          
+          // Convert Firebase errors to user-friendly messages
+          if (error.code === 'permission-denied') {
+              throw new Error("You don't have permission to comment on this post.");
+          } else if (error.code === 'resource-exhausted') {
+              throw new Error("The server is busy. Please try again in a moment.");
+          } else if (error.code === 'unavailable') {
+              throw new Error("Network error. Please check your connection and try again.");
+          } else if (error.message.includes('FirebaseError')) {
+              throw new Error("Something went wrong. Please refresh the page and try again.");
+          }
+          
+          throw error;
+      }
+  }
+  
+  // If we get here, all retries failed
+  throw lastError || new Error("Failed to post comment after multiple attempts. Please try again.");
+};
+
+// Helper function for text similarity (make sure this is INSIDE the file, not floating)
+const calculateTextSimilarity = (text1: string, text2: string): number => {
+  const words1 = text1.toLowerCase().split(/\s+/);
+  const words2 = text2.toLowerCase().split(/\s+/);
+  
+  const set1 = new Set(words1);
+  const set2 = new Set(words2);
+  
+  const intersection = new Set([...set1].filter(x => set2.has(x)));
+  const union = new Set([...set1, ...set2]);
+  
+  return intersection.size / union.size;
 };
 
 export const getCommentsByPostId = (postId, callback) => {
@@ -888,6 +1101,54 @@ export const unlikeComment = async (userId, commentId) => {
 
 
 // --- Friend Functions -- -
+
+export const checkIfFriendRequestSent = async (currentUserId: string, targetUserId: string) => {
+    try {
+      const userRef = doc(db, 'users', targetUserId);
+      const userDoc = await getDoc(userRef);
+      
+      if (userDoc.exists()) {
+        const userData = userDoc.data();
+        return userData.friendRequests?.includes(currentUserId) || false;
+      }
+      return false;
+    } catch (error) {
+      console.error("Error checking friend request status:", error);
+      return false;
+    }
+  };
+  
+  export const cancelFriendRequest = async (currentUserId: string, targetUserId: string) => {
+    try {
+      // Remove from target user's friendRequests
+      const targetUserRef = doc(db, 'users', targetUserId);
+      await updateDoc(targetUserRef, {
+        friendRequests: arrayRemove(currentUserId)
+      });
+      
+      return true;
+    } catch (error) {
+      console.error("Error cancelling friend request:", error);
+      throw error;
+    }
+  };
+  
+  // Also, you might want to add this function to check if users are already friends
+  export const checkIfFriends = async (currentUserId: string, targetUserId: string) => {
+    try {
+      const userRef = doc(db, 'users', currentUserId);
+      const userDoc = await getDoc(userRef);
+      
+      if (userDoc.exists()) {
+        const userData = userDoc.data();
+        return userData.friends?.includes(targetUserId) || false;
+      }
+      return false;
+    } catch (error) {
+      console.error("Error checking friendship status:", error);
+      return false;
+    }
+  };
 
 export const sendFriendRequest = async (fromUserId, toUserId) => {
     const toUserRef = doc(db, 'users', toUserId);
@@ -1288,116 +1549,142 @@ export const adminDeletePost = async (postId: string, reportId: string | null, a
 
 // Shop Functions
 export const purchaseItem = async (userId: string, item: any, discountedPrice?: number) => {
-    const userRef = doc(db, 'users', userId);
-    
-    return await runTransaction(db, async (transaction) => {
-      const userDoc = await transaction.get(userRef);
-      if (!userDoc.exists()) {
-        throw new Error('User not found');
-      }
-
-      const userData = userDoc.data();
-      const currentScore = userData.chirpScore || 0;
-      const finalPrice = discountedPrice !== undefined ? discountedPrice : item.price;
-      const discountPercentage = discountedPrice !== undefined ? 
-          Math.round((1 - discountedPrice / item.price) * 100) : 0;
-      const userRole = getUserRole(userId);
-
-      if (currentScore < finalPrice) {
-        throw new Error('Insufficient ChirpScore');
-      }
-
-      const updates: any = {
-        chirpScore: increment(-finalPrice),
-      };
-
-      // Add to purchased items
-      if (item.type === 'font') {
-        updates[`purchasedItems.fonts`] = arrayUnion(item.value);
-      } else if (item.type === 'color') {
-        updates[`purchasedItems.colors`] = arrayUnion(item.value);
-      } else if (item.type === 'gradient') {
-        updates[`purchasedItems.gradients`] = arrayUnion(item.value);
-      } else if (item.type === 'moving-gradient') {
-        updates[`purchasedItems.movingGradients`] = arrayUnion(item.value);
-      }
-
-      // Equip the item
-      if (item.type === 'font') {
-        updates.nameFont = item.value;
-        updates[`equippedStyle.nameFont`] = item.value;
-      } else if (item.type === 'color') {
-        updates.nameColor = item.value;
-        updates.nameEffect = 'none';
-        updates[`equippedStyle.nameColor`] = item.value;
-        updates[`equippedStyle.nameEffect`] = 'none';
-      } else if (item.type === 'gradient') {
-        updates.nameColor = item.value;
-        updates.nameEffect = 'gradient';
-        updates[`equippedStyle.nameColor`] = item.value;
-        updates[`equippedStyle.nameEffect`] = 'gradient';
-      } else if (item.type === 'moving-gradient') {
-        updates.nameColor = item.value;
-        updates.nameEffect = 'moving-gradient';
-        updates[`equippedStyle.nameColor`] = item.value;
-        updates[`equippedStyle.nameEffect`] = 'moving-gradient';
-      }
-
-      transaction.update(userRef, updates);
-      
-      // Log the purchase AFTER the transaction succeeds
-      const newBalance = currentScore - finalPrice;
-      
-      // Return the purchase info for logging
-      return {
-        userId,
-        username: userData.username || 'Unknown',
-        itemName: item.name,
-        originalPrice: item.price,
-        discountedPrice: finalPrice,
-        discountPercentage,
-        userRole,
-        newBalance
-      };
-    }).then(async (purchaseInfo) => {
-      // Log the purchase outside the transaction
-      await logPurchaseToSystem(
-        purchaseInfo.userId,
-        purchaseInfo.username,
-        purchaseInfo.itemName,
-        purchaseInfo.originalPrice,
-        purchaseInfo.discountedPrice,
-        purchaseInfo.discountPercentage,
-        purchaseInfo.userRole,
-        purchaseInfo.newBalance
-      );
-      return purchaseInfo;
-    });
-  };
-
-  const logPurchaseToSystem = async (
-    userId: string, 
-    username: string, 
-    itemName: string, 
-    originalPrice: number, 
-    discountedPrice: number, 
-    discountPercentage: number, 
-    userRole: string,
-    newBalance: number
-) => {
-    try {
-        await addDoc(collection(db, 'system_logs'), {
-            action: 'SHOP_PURCHASE',
-            adminId: userId,
-            adminUsername: username,
-            details: `Purchased ${itemName} for ${discountedPrice} points (Original: ${originalPrice}, Discount: ${discountPercentage}%) - Balance: ${newBalance} - Role: ${userRole}`,
-            timestamp: serverTimestamp(),
-        });
-        console.log('Purchase logged successfully');
-    } catch (error) {
-        console.error('Error logging purchase:', error);
-        // Don't throw error here - purchase succeeded, just logging failed
+  const userRef = doc(db, 'users', userId);
+  
+  return await runTransaction(db, async (transaction) => {
+    const userDoc = await transaction.get(userRef);
+    if (!userDoc.exists()) {
+      throw new Error('User not found');
     }
+
+    const userData = userDoc.data();
+    const currentScore = userData.chirpScore || 0;
+    const finalPrice = discountedPrice !== undefined ? discountedPrice : item.price;
+    const userRole = getUserRole(userId);
+    
+    if (currentScore < finalPrice) {
+      throw new Error('Insufficient ChirpScore');
+    }
+
+    const updates: any = {
+      chirpScore: increment(-finalPrice),
+    };
+
+    // Initialize purchasedItems if it doesn't exist
+    if (!userData.purchasedItems) {
+      updates.purchasedItems = {
+        fonts: [],
+        colors: [],
+        gradients: [],
+        movingGradients: [],
+        effects: [], // Add effects array
+      };
+    }
+
+    // Add to purchased items
+    if (item.type === 'font') {
+      updates[`purchasedItems.fonts`] = arrayUnion(item.value);
+    } else if (item.type === 'color') {
+      updates[`purchasedItems.colors`] = arrayUnion(item.value);
+    } else if (item.type === 'gradient') {
+      updates[`purchasedItems.gradients`] = arrayUnion(item.value);
+    } else if (item.type === 'moving-gradient') {
+      updates[`purchasedItems.movingGradients`] = arrayUnion(item.value);
+    } else if (item.type === 'special-effect') {
+      updates[`purchasedItems.effects`] = arrayUnion(item.value);
+    }
+
+    // Equip the item
+    if (item.type === 'font') {
+      updates.nameFont = item.value;
+      updates[`equippedStyle.nameFont`] = item.value;
+    } else if (item.type === 'color') {
+      updates.nameColor = item.value;
+      updates.nameEffect = 'none';
+      updates[`equippedStyle.nameColor`] = item.value;
+      updates[`equippedStyle.nameEffect`] = 'none';
+    } else if (item.type === 'gradient') {
+      updates.nameColor = item.value;
+      updates.nameEffect = 'gradient';
+      updates[`equippedStyle.nameColor`] = item.value;
+      updates[`equippedStyle.nameEffect`] = 'gradient';
+    } else if (item.type === 'moving-gradient') {
+      updates.nameColor = item.value;
+      updates.nameEffect = 'moving-gradient';
+      updates[`equippedStyle.nameColor`] = item.value;
+      updates[`equippedStyle.nameEffect`] = 'moving-gradient';
+    } else if (item.type === 'special-effect') {
+      updates.nameEffect = item.value;
+      updates[`equippedStyle.nameEffect`] = item.value;
+    }
+
+    transaction.update(userRef, updates);
+    
+    // Return purchase data to be logged
+    return {
+      userId,
+      username: userData.username || 'Unknown',
+      userEmail: userData.email || '',
+      userRole,
+      itemName: item.name,
+      itemType: item.type,
+      itemValue: item.value,
+      originalPrice: item.price,
+      discountedPrice: finalPrice,
+      discountApplied: userRole === 'superadmin' ? 90 : userRole === 'moderator' ? 30 : 0,
+      newBalance: currentScore - finalPrice,
+      chirpScoreBalance: currentScore // This is the balance BEFORE the purchase
+    };
+  }).then(async (purchaseData) => {
+    // Log the purchase to purchase_history collection AFTER transaction succeeds
+    try {
+      await logPurchase(purchaseData);
+    } catch (logError) {
+      console.error('Failed to log purchase:', logError);
+      // Don't throw - the purchase was successful, just logging failed
+    }
+    
+    return purchaseData;
+  });
+};
+
+// Add this function to log purchases
+export const logPurchase = async (purchaseData: {
+userId: string;
+username: string;
+userEmail: string;
+userRole: 'superadmin' | 'moderator' | 'user';
+itemName: string;
+itemType: string;
+itemValue: string;
+originalPrice: number;
+discountedPrice: number;
+discountApplied: number;
+newBalance: number;
+chirpScoreBalance: number;
+}) => {
+try {
+  const purchaseRef = await addDoc(collection(db, 'purchase_history'), {
+    userId: purchaseData.userId,
+    userName: purchaseData.username,
+    userEmail: purchaseData.userEmail,
+    itemName: purchaseData.itemName,
+    itemType: purchaseData.itemType,
+    itemValue: purchaseData.itemValue,
+    originalPrice: purchaseData.originalPrice,
+    discountedPrice: purchaseData.discountedPrice,
+    userRole: purchaseData.userRole,
+    discountApplied: purchaseData.discountApplied,
+    chirpScoreBalance: purchaseData.newBalance, // Use the new balance AFTER purchase
+    timestamp: serverTimestamp()
+  });
+  
+  console.log('Purchase logged with ID:', purchaseRef.id);
+  return purchaseRef.id;
+} catch (error) {
+  console.error('Error logging purchase:', error);
+  throw error;
+}
 };
 
   export const purchaseMultipleItems = async (userId: string, items: any[]) => {
@@ -1452,14 +1739,13 @@ export const MODERATORS = [
 ];
 
 export const getUserRole = (userId: string): 'superadmin' | 'moderator' | 'user' => {
-    if (SUPER_ADMINS.includes(userId)) {
-        return 'superadmin';
-    } else if (MODERATORS.includes(userId)) {
-        return 'moderator';
-    }
-    return 'user';
+  if (SUPER_ADMINS.includes(userId)) {
+      return 'superadmin';
+  } else if (MODERATORS.includes(userId)) {
+      return 'moderator';
+  }
+  return 'user';
 };
-
 
 export const calculateDiscountedPrice = (originalPrice: number, userRole: 'superadmin' | 'moderator' | 'user'): number => {
     if (userRole === 'superadmin') {
@@ -1477,31 +1763,30 @@ export const equipStyle = async (userId: string, item: any) => {
     const userRef = doc(db, 'users', userId);
     
     const updates: any = {};
-    const styleToEquip: any = {};
     
     if (item.type === 'font') {
       updates.nameFont = item.value;
-      styleToEquip.nameFont = item.value;
+      updates[`equippedStyle.nameFont`] = item.value;
     } else if (item.type === 'color') {
       updates.nameColor = item.value;
       updates.nameEffect = 'none';
-      styleToEquip.nameColor = item.value;
-      styleToEquip.nameEffect = 'none';
+      updates[`equippedStyle.nameColor`] = item.value;
+      updates[`equippedStyle.nameEffect`] = 'none';
     } else if (item.type === 'gradient') {
       updates.nameColor = item.value;
       updates.nameEffect = 'gradient';
-      styleToEquip.nameColor = item.value;
-      styleToEquip.nameEffect = 'gradient';
+      updates[`equippedStyle.nameColor`] = item.value;
+      updates[`equippedStyle.nameEffect`] = 'gradient';
     } else if (item.type === 'moving-gradient') {
       updates.nameColor = item.value;
       updates.nameEffect = 'moving-gradient';
-      styleToEquip.nameColor = item.value;
-      styleToEquip.nameEffect = 'moving-gradient';
+      updates[`equippedStyle.nameColor`] = item.value;
+      updates[`equippedStyle.nameEffect`] = 'moving-gradient';
+    } else if (item.type === 'special-effect') {
+      updates.nameEffect = item.value;
+      updates[`equippedStyle.nameEffect`] = item.value;
     }
     
-    // Update equippedStyle
-    updates.equippedStyle = styleToEquip;
-  
     await updateDoc(userRef, updates);
     
     // Update all existing posts with new style
@@ -1510,7 +1795,7 @@ export const equipStyle = async (userId: string, item: any) => {
     // Dispatch events to notify all components
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('style-equipped', { 
-        detail: { userId, style: styleToEquip } 
+        detail: { userId, style: updates } 
       }));
       window.dispatchEvent(new CustomEvent('profile-updated'));
     }
@@ -1563,6 +1848,7 @@ const updateAllPostsWithUserStyle = async (userId: string, style: any) => {
       colors: [],
       gradients: [],
       movingGradients: [],
+      effects: [], 
     };
   };
   
@@ -1577,6 +1863,8 @@ const updateAllPostsWithUserStyle = async (userId: string, style: any) => {
       return user.purchasedItems.gradients?.includes(item.value) || false;
     } else if (item.type === 'moving-gradient') {
       return user.purchasedItems.movingGradients?.includes(item.value) || false;
+    } else if (item.type === 'special-effect') {
+      return user.purchasedItems.effects?.includes(item.value) || false;
     }
     
     return false;

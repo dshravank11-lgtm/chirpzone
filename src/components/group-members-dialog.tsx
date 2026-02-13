@@ -18,6 +18,41 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { getUserProfile } from '@/services/firebase';
 import { Skeleton } from '@/components/ui/skeleton';
 
+const getStyledName = (member: any) => {
+    if (!member) return {};
+    
+    const style: React.CSSProperties = {
+      fontFamily: member.nameFont || 'PT Sans, sans-serif',
+    };
+  
+    const colorValue = member.nameColor || '#ff990a';
+    const effect = member.nameEffect || 'none';
+  
+    if (effect === 'none') {
+      style.color = colorValue;
+    } else if (effect === 'gradient') {
+      style.backgroundImage = colorValue;
+      style.WebkitBackgroundClip = 'text';
+      style.WebkitTextFillColor = 'transparent';
+      style.backgroundClip = 'text';
+    } else if (effect === 'moving-gradient') {
+      style.backgroundImage = colorValue;
+      style.backgroundSize = '200% 200%';
+      style.WebkitBackgroundClip = 'text';
+      style.WebkitTextFillColor = 'transparent';
+      style.backgroundClip = 'text';
+      style.animation = 'gradientMove 3s ease infinite';
+    } else if (effect === 'nebula') {
+      style.color = colorValue;
+      style.textShadow = '0 0 20px rgba(181, 124, 247, 0.8), 0 0 40px rgba(75, 0, 130, 0.6)';
+    } else if (effect === 'glitch') {
+      style.color = colorValue;
+      style.textShadow = '1px 0 #00ff00, -1px 0 #ff00ff';
+    }
+  
+    return style;
+  };
+
 const MemberSkeleton = () => (
     <div className="rounded-xl border border-border/50 bg-gradient-to-br from-background to-muted/20 p-3 sm:p-4">
         <div className="flex items-center justify-between gap-3">
@@ -137,9 +172,12 @@ export const GroupMembersDialog = ({ members: initialMembers, createdBy, onAddMe
                                                 </Avatar>
                                                 <div className="flex-1 min-w-0">
                                                     <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
-                                                        <p className="font-semibold text-sm sm:text-base truncate">
-                                                            {member.name}
-                                                        </p>
+                                                    <p 
+  className="font-semibold text-sm sm:text-base truncate"
+  style={getStyledName(member)}
+>
+  {member.name}
+</p>
                                                         {member.uid === createdBy && (
                                                             <Badge 
                                                                 variant="secondary" 

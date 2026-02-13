@@ -26,10 +26,66 @@ import {
 import type { UserProfile, Post, Comment } from '@/types';
 import { Skeleton } from '@/components/ui/skeleton';
 import { EditProfileDialog } from '@/components/edit-profile-dialog';
-import { Camera, CalendarDays, Briefcase, Link as LinkIcon, Users, UserPlus, MessageCircle, Trophy, Heart, MessageSquare, Crown, Palette, Sparkles } from 'lucide-react';
+import { 
+    Camera, 
+    CalendarDays, 
+    Briefcase, 
+    Link as LinkIcon, 
+    Users, 
+    UserPlus, 
+    MessageCircle, 
+    Trophy, 
+    Heart, 
+    MessageSquare, 
+    Crown, 
+    Palette, 
+    Sparkles,
+    MapPin,
+    Settings,
+    Image as ImageIcon,
+    Video,
+    Smile
+} from 'lucide-react';
 import { achievementList, type Achievement } from '@/config/achievements';
 import { AchievementCard } from '@/components/achievement-card';
 import Link from 'next/link';
+
+// Animation variants from second code
+const nebulaOrbitVariants = {
+  animate: {
+    rotate: 360,
+    transition: {
+      duration: 20,
+      repeat: Infinity,
+      ease: "linear"
+    }
+  }
+};
+
+const starPulseVariants = {
+  animate: {
+    scale: [1, 1.2, 1],
+    opacity: [0.6, 1, 0.6],
+    transition: {
+      duration: 2,
+      repeat: Infinity,
+      ease: "easeInOut"
+    }
+  }
+};
+
+const glitchVariants = {
+  animate: {
+    x: [0, -2, 2, -2, 2, 0],
+    y: [0, 1, -1, 1, -1, 0],
+    transition: {
+      duration: 0.3,
+      repeat: Infinity,
+      repeatDelay: 3,
+      ease: "easeInOut"
+    }
+  }
+};
 
 const ProfileSkeleton = () => (
     <div className="space-y-6">
@@ -75,11 +131,6 @@ const PostSkeleton = () => (
           <Skeleton className="h-4 w-5/6" />
         </div>
       </CardContent>
-      <CardFooter className="flex justify-around w-full border-t p-2 mt-4">
-         <Skeleton className="h-8 w-24" />
-         <Skeleton className="h-8 w-24" />
-         <Skeleton className="h-8 w-24" />
-      </CardFooter>
     </Card>
   );
 
@@ -93,28 +144,39 @@ const AchievementSkeleton = () => (
     </Card>
 )
 
-// FIXED: Properly extract style from profile
+// Updated getStyledName function with nebula and glitch effects
 const getStyledName = (profile: UserProfile | null) => {
   if (!profile) return {};
   
   const style: React.CSSProperties = {
     fontFamily: profile.nameFont || 'PT Sans, sans-serif',
+    position: 'relative' as const,
+    zIndex: 10,
   };
 
-  if (profile.nameEffect === 'none') {
-    style.color = profile.nameColor || '#ff990a';
-  } else if (profile.nameEffect === 'gradient') {
-    style.backgroundImage = profile.nameColor || 'linear-gradient(90deg, #ff990a, #ff6b00)';
+  const colorValue = profile.nameColor || '#ff990a';
+  const effect = profile.nameEffect || 'none';
+
+  if (effect === 'none') {
+    style.color = colorValue;
+  } else if (effect === 'gradient') {
+    style.backgroundImage = colorValue;
     style.WebkitBackgroundClip = 'text';
     style.WebkitTextFillColor = 'transparent';
     style.backgroundClip = 'text';
-  } else if (profile.nameEffect === 'moving-gradient') {
-    style.backgroundImage = profile.nameColor || 'linear-gradient(90deg, #ff990a, #ff6b00)';
+  } else if (effect === 'moving-gradient') {
+    style.backgroundImage = colorValue;
     style.backgroundSize = '200% 200%';
     style.WebkitBackgroundClip = 'text';
     style.WebkitTextFillColor = 'transparent';
     style.backgroundClip = 'text';
     style.animation = 'gradientMove 3s ease infinite';
+  } else if (effect === 'nebula') {
+    style.color = colorValue;
+    style.textShadow = '0 0 20px rgba(138, 43, 226, 0.8), 0 0 40px rgba(75, 0, 130, 0.6)';
+  } else if (effect === 'glitch') {
+    style.color = colorValue;
+    style.textShadow = '1px 0 #00ff00, -1px 0 #ff00ff';
   }
 
   return style;
@@ -132,6 +194,8 @@ const getStyleDescription = (profile: UserProfile | null) => {
   let effectText = '';
   if (effect === 'gradient') effectText = 'with gradient';
   if (effect === 'moving-gradient') effectText = 'with animated gradient';
+  if (effect === 'nebula') effectText = 'with nebula effect';
+  if (effect === 'glitch') effectText = 'with glitch effect';
   
   return `${fontName} font ${effectText}`;
 };
@@ -257,12 +321,12 @@ export default function ProfilePage() {
         }),
       };
 
-      const getActiveTabContent = () => {
+    const getActiveTabContent = () => {
         switch (activeTab) {
           case 'posts':
             return posts.length > 0 
                 ? posts.map(post => <PostCard key={post.id} post={post} />)
-                : <p className="text-center text-muted-foreground py-16">This user hasn\'t posted anything yet.</p>;
+                : <p className="text-center text-muted-foreground py-16">This user hasn't posted anything yet.</p>;
           case 'achievements':
             return achievements.length > 0
                 ? (
@@ -280,7 +344,7 @@ export default function ProfilePage() {
           case 'likes':
             return likedPosts.length > 0 
                 ? likedPosts.map(post => <PostCard key={post.id} post={post} />)
-                : <p className="text-center text-muted-foreground py-16">This user hasn\'t liked any posts yet.</p>;
+                : <p className="text-center text-muted-foreground py-16">This user hasn't liked any posts yet.</p>;
           case 'comments':
             return comments.length > 0 
                 ? comments.map(comment => (
@@ -292,8 +356,7 @@ export default function ProfilePage() {
           default:
             return null;
         }
-      };
-
+    };
 
     if (loading) {
         return (
@@ -320,130 +383,485 @@ export default function ProfilePage() {
 
     const nameStyle = getStyledName(profile);
     const styleDescription = getStyleDescription(profile);
+    const hasNebulaEffect = profile.nameEffect === 'nebula';
+    const hasGlitchEffect = profile.nameEffect === 'glitch';
+    const fallback = profile.displayName?.substring(0, 2).toUpperCase() || 'U';
 
     return (
         <AppLayout>
           <PageTransition>
           <div className="space-y-6">
-          <div className="flex flex-col md:flex-row items-start space-x-0 md:space-x-6">
-                <div 
-                    className={`relative group ${isOwnProfile ? 'cursor-pointer' : ''}`}
-                    onClick={() => isOwnProfile && setIsEditDialogOpen(true)}
-                >
-                    <Avatar className="w-24 h-24 md:w-32 md:h-32 border-4 border-background shadow-md transition-all group-hover:ring-4 group-hover:ring-primary/20">
-                        <AvatarImage src={profile.avatarUrl || 'https://placehold.co/100x100.png'} alt={profile.displayName} />
-                        <AvatarFallback>{profile.displayName?.charAt(0) || '?'}</AvatarFallback>
-                    </Avatar>
-                    {isOwnProfile && (
-                        <div className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
-                            <Camera className="h-8 w-8 text-white" />
-                        </div>
-                    )}
-                </div>
-                <div className="flex-1 mt-4 md:mt-0">
-                    <div className="flex items-center justify-between">
-                    
-<div>
-  <h1 
-    className="text-3xl font-bold mb-1"
-    style={nameStyle}
-  >
-    {profile.displayName || profile.name || profile.username}
-  </h1>
-  <p className="text-muted-foreground mb-2">@{profile.username}</p>
-  
-  {/* Show style info if not default */}
-  {styleDescription && (
-    <div className="flex items-center gap-2">
-      <div className="flex items-center gap-1 text-xs text-muted-foreground bg-muted px-3 py-1.5 rounded-full">
-        <Palette className="h-3 w-3" />
-        <span>{styleDescription}</span>
-        {profile.nameEffect === 'gradient' && (
-          <Sparkles className="h-3 w-3 text-purple-500 ml-1" />
-        )}
-        {profile.nameEffect === 'moving-gradient' && (
-          <Sparkles className="h-3 w-3 text-purple-500 ml-1 animate-pulse" />
-        )}
-      </div>
-    </div>
-  )}
-</div>
-                        {isOwnProfile ? (
-                          <div className="flex items-center gap-2">
-                            <Link href="/equip">
-                              <Button variant="outline" className="flex items-center gap-2">
-                                <Crown className="h-4 w-4" />
-                                Manage Styles
-                              </Button>
-                            </Link>
-                            <Button variant="outline" onClick={() => setIsEditDialogOpen(true)}>Edit Profile</Button>
-                          </div>
-                        ) : (
-                            <div className="flex items-center space-x-2">
-                                <Button variant={isFollowing ? 'secondary' : 'default'} onClick={handleFollow}>
-                                    <UserPlus className="h-4 w-4 mr-2" />
-                                    {isFollowing ? 'Following' : 'Follow'}
-                                </Button>
-                                {isFriend ? (
-                                    <Button variant="outline">
-                                        <MessageCircle className="h-4 w-4 mr-2" />
-                                        Chat
-                                    </Button>
-                                ) : (
-                                    <Button variant="outline">
-                                        <Users className="h-4 w-4 mr-2" />
-                                        Add Friend
-                                    </Button>
-                                )}
-                            </div>
-                        )}
-                    </div>
-                    {profile.bio && <p className="mt-4 text-foreground">{profile.bio}</p>}
-                    <div className="mt-4 flex flex-wrap gap-x-6 gap-y-2 text-muted-foreground text-sm">
-                        {profile.occupation && (
-                            <div className="flex items-center gap-2">
-                                <Briefcase className="h-4 w-4" />
-                                <span>{profile.occupation}</span>
-                            </div>
-                        )}
-                        {profile.website && (
-                             <a href={profile.website} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 hover:text-foreground transition-colors">
-                                <LinkIcon className="h-4 w-4" />
-                                <span>{profile.website.replace(/^(https?:\/\/)?(www\.)?/, '')}</span>
-                            </a>
-                        )}
-                        <div className="flex items-center gap-2">
-                            <CalendarDays className="h-4 w-4" />
-                            <span>Joined {creationDate}</span>
-                        </div>
-                    </div>
-                 </div>
-            </div>
+            {/* Profile Header Card with Effects */}
+            <Card className="overflow-hidden border-2 border-[#ffa600]/20 relative">
+              {/* Nebula Effect Background */}
+              {hasNebulaEffect && (
+                <>
+                  {/* Spinning Vortex Rings */}
+                  {[...Array(3)].map((_, i) => (
+                    <motion.div
+                      key={`vortex-ring-${i}`}
+                      animate={{
+                        rotate: 360,
+                        scale: [1, 1.1, 1],
+                        opacity: [0.2, 0.4, 0.2],
+                      }}
+                      transition={{
+                        rotate: {
+                          duration: 10 - i * 2,
+                          repeat: Infinity,
+                          ease: 'linear',
+                        },
+                        scale: {
+                          duration: 4,
+                          repeat: Infinity,
+                          ease: 'easeInOut',
+                          delay: i * 0.3,
+                        },
+                        opacity: {
+                          duration: 4,
+                          repeat: Infinity,
+                          ease: 'easeInOut',
+                          delay: i * 0.3,
+                        },
+                      }}
+                      className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none"
+                      style={{
+                        width: `${200 + i * 80}px`,
+                        height: `${200 + i * 80}px`,
+                        border: '2px solid',
+                        borderColor: `rgba(147, 112, 219, ${0.3 - i * 0.08})`,
+                        borderRadius: '50%',
+                        filter: 'blur(2px)',
+                      }}
+                    />
+                  ))}
+                  
+                  {/* Central Glowing Core */}
+                  <motion.div
+                    animate={{
+                      scale: [1, 1.2, 1],
+                      opacity: [0.4, 0.8, 0.4],
+                    }}
+                    transition={{
+                      duration: 3,
+                      repeat: Infinity,
+                      ease: 'easeInOut',
+                    }}
+                    className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none"
+                    style={{
+                      width: '150px',
+                      height: '150px',
+                      background: 'radial-gradient(circle, rgba(138, 43, 226, 0.6) 0%, rgba(147, 112, 219, 0.3) 40%, transparent 70%)',
+                      borderRadius: '50%',
+                      filter: 'blur(15px)',
+                    }}
+                  />
 
-            <Separator />
-            
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4 text-center">
-               <div className="p-2 rounded-lg transition-colors hover:bg-muted">
-                   <p className="font-bold text-lg">{posts.length}</p>
-                   <p className="text-sm text-muted-foreground">Chirps</p>
-               </div>
-               <div className="p-2 rounded-lg transition-colors hover:bg-muted">
-                   <p className="font-bold text-lg">{profile?.following?.length || 0}</p>
-                   <p className="text-sm text-muted-foreground">Following</p>
-               </div>
-                <div className="p-2 rounded-lg transition-colors hover:bg-muted">
-                   <p className="font-bold text-lg">{profile?.followers?.length || 0}</p>
-                   <p className="text-sm text-muted-foreground">Followers</p>
-               </div>
-               <div className="p-2 rounded-lg transition-colors hover:bg-muted">
-                    <p className="font-bold text-lg">{likedPosts.length}</p>
-                    <p className="text-sm text-muted-foreground">Likes</p>
+                  {/* Spiraling Energy Particles */}
+                  {[...Array(20)].map((_, i) => (
+                    <motion.div
+                      key={`spiral-${i}`}
+                      animate={{
+                        rotate: 360,
+                      }}
+                      transition={{
+                        duration: 5,
+                        repeat: Infinity,
+                        ease: 'linear',
+                        delay: i * 0.1,
+                      }}
+                      className="absolute left-1/2 top-1/2 pointer-events-none"
+                      style={{
+                        transformOrigin: '0 0',
+                      }}
+                    >
+                      <motion.div
+                        animate={{
+                          scale: [0, 0.6, 0],
+                          opacity: [0, 0.5, 0],
+                        }}
+                        transition={{
+                          duration: 2.5,
+                          repeat: Infinity,
+                          ease: 'easeOut',
+                          delay: i * 0.1,
+                        }}
+                        style={{
+                          width: '6px',
+                          height: '6px',
+                          borderRadius: '50%',
+                          background: `radial-gradient(circle, rgba(${147 + i * 2}, ${112 + i}, 219, 0.7) 0%, transparent 70%)`,
+                          transform: `translateX(${80 + i * 15}px)`,
+                          filter: 'blur(1px)',
+                        }}
+                      />
+                    </motion.div>
+                  ))}
+                </>
+              )}
+
+              {/* Glitch Effect */}
+              {hasGlitchEffect && (
+                <>
+                  {/* Enhanced Animated Glitch Layers */}
+                  <motion.div
+                    animate={{
+                      x: [0, -5, 5, -3, 3, 0],
+                      y: [0, 2, -2, 1, -1, 0],
+                      opacity: [0, 0.6, 0.4, 0.8, 0.3, 0],
+                    }}
+                    transition={{
+                      duration: 0.8,
+                      repeat: Infinity,
+                      repeatDelay: 2,
+                      ease: 'easeInOut',
+                    }}
+                    className="absolute inset-0 pointer-events-none"
+                    style={{
+                      background: 'linear-gradient(45deg, transparent 0%, rgba(255, 0, 0, 0.4) 50%, transparent 100%)',
+                      mixBlendMode: 'screen',
+                      filter: 'blur(1px)',
+                    }}
+                  />
+                  
+                  {/* Horizontal Scan Lines */}
+                  {[...Array(10)].map((_, i) => (
+                    <motion.div
+                      key={`scanline-${i}`}
+                      animate={{
+                        x: ['-100%', '200%'],
+                        opacity: [0, 0.8, 0],
+                      }}
+                      transition={{
+                        duration: 1.5,
+                        repeat: Infinity,
+                        delay: i * 0.2,
+                        ease: 'linear',
+                        repeatDelay: 1,
+                      }}
+                      className="absolute pointer-events-none"
+                      style={{
+                        top: `${i * 10}%`,
+                        width: '50%',
+                        height: '2px',
+                        background: 'linear-gradient(90deg, transparent, rgba(0, 255, 0, 0.8), transparent)',
+                        filter: 'blur(0.5px)',
+                      }}
+                    />
+                  ))}
+
+                  {/* Binary Rain Effect */}
+                  {[...Array(20)].map((_, i) => (
+                    <motion.div
+                      key={`binary-rain-${i}`}
+                      animate={{
+                        y: [-50, 400],
+                        opacity: [0, 1, 0],
+                      }}
+                      transition={{
+                        duration: Math.random() * 3 + 2,
+                        repeat: Infinity,
+                        delay: Math.random() * 2,
+                        ease: 'linear',
+                      }}
+                      className="absolute text-xs font-mono pointer-events-none"
+                      style={{
+                        left: `${5 + i * 4.5}%`,
+                        color: Math.random() > 0.5 ? '#00ff00' : '#00ffff',
+                        textShadow: '0 0 5px currentColor',
+                        fontWeight: 'bold',
+                      }}
+                    >
+                      {Array.from({ length: 4 }, () => Math.random() > 0.5 ? '1' : '0').join('')}
+                    </motion.div>
+                  ))}
+
+                  {/* Digital Noise Blocks */}
+                  {[...Array(25)].map((_, i) => (
+                    <motion.div
+                      key={`noise-block-${i}`}
+                      animate={{
+                        x: [0, Math.random() * 15 - 7.5],
+                        y: [0, Math.random() * 8 - 4],
+                        opacity: [0, 0.9, 0],
+                        scale: [1, 1.3, 1],
+                      }}
+                      transition={{
+                        duration: 0.25,
+                        repeat: Infinity,
+                        delay: i * 0.15,
+                        repeatDelay: 1.5,
+                      }}
+                      className="absolute pointer-events-none"
+                      style={{
+                        left: `${Math.random() * 95}%`,
+                        top: `${Math.random() * 95}%`,
+                        width: `${Math.random() * 35 + 5}px`,
+                        height: `${Math.random() * 5 + 2}px`,
+                        background: Math.random() > 0.5 
+                          ? 'rgba(0, 255, 0, 0.8)' 
+                          : Math.random() > 0.5 
+                          ? 'rgba(255, 0, 255, 0.8)' 
+                          : 'rgba(255, 0, 0, 0.8)',
+                        borderRadius: '2px',
+                        filter: 'blur(0.5px)',
+                      }}
+                    />
+                  ))}
+                </>
+              )}
+
+              <CardContent className="p-0 relative z-10">
+                {/* Cover Image */}
+                <div className="h-48 bg-gradient-to-r from-[#ffa600] via-orange-500 to-[#ffa600] relative overflow-hidden">
+                  <div className="absolute inset-0 bg-gradient-to-b from-transparent to-background/50"></div>
                 </div>
-                <div className="p-2 rounded-lg transition-colors hover:bg-muted">
-                    <p className="font-bold text-lg">{comments.length}</p>
-                    <p className="text-sm text-muted-foreground">Comments</p>
+
+                {/* Profile Info */}
+                <div className="px-6 pb-6">
+                  {/* Avatar */}
+                  <div className="relative -mt-16 mb-4">
+                    <motion.div
+                      whileHover={{ scale: 1.05 }}
+                      className="relative inline-block"
+                    >
+                      {/* Avatar effects */}
+                      {hasNebulaEffect && (
+                        <motion.div
+                          animate={{
+                            rotate: 360,
+                            scale: [1, 1.1, 1],
+                          }}
+                          transition={{
+                            rotate: {
+                              duration: 15,
+                              repeat: Infinity,
+                              ease: 'linear',
+                            },
+                            scale: {
+                              duration: 3,
+                              repeat: Infinity,
+                              ease: 'easeInOut',
+                            },
+                          }}
+                          className="absolute -inset-4 pointer-events-none"
+                          style={{
+                            background: 'conic-gradient(from 0deg, transparent, rgba(138, 43, 226, 0.4), rgba(75, 0, 130, 0.6), transparent)',
+                            borderRadius: '50%',
+                            filter: 'blur(10px)',
+                          }}
+                        />
+                      )}
+
+                      {hasGlitchEffect && (
+                        <motion.div
+                          animate={{
+                            x: [-4, 4, -2, 2, 0],
+                            y: [0, 2, -2, 1, -1],
+                            opacity: [0, 0.3, 0, 0.2, 0],
+                          }}
+                          transition={{
+                            duration: 0.5,
+                            repeat: Infinity,
+                            repeatDelay: 2,
+                          }}
+                          className="absolute -inset-4 pointer-events-none"
+                          style={{
+                            background: 'radial-gradient(circle, transparent 30%, rgba(0, 255, 0, 0.3) 50%, transparent 70%)',
+                            mixBlendMode: 'screen',
+                            filter: 'blur(4px)',
+                          }}
+                        />
+                      )}
+
+                      <Avatar className="h-32 w-32 border-4 border-background shadow-xl">
+                        <AvatarImage src={profile.avatarUrl || 'https://placehold.co/100x100.png'} alt={profile.displayName} />
+                        <AvatarFallback className="bg-gradient-to-br from-[#ffa600] to-orange-600 text-white text-4xl font-bold">
+                          {fallback}
+                        </AvatarFallback>
+                      </Avatar>
+                    </motion.div>
+
+                    {/* Action Buttons */}
+                    <div className="absolute right-0 top-0 flex gap-2">
+                      {!isOwnProfile && (
+                        <>
+                          <Button
+                            onClick={handleFollow}
+                            className={isFollowing ? "bg-muted" : "bg-[#ffa600] hover:bg-[#ff9500]"}
+                            size="lg"
+                          >
+                            <UserPlus className="h-4 w-4 mr-2" />
+                            {isFollowing ? 'Following' : 'Follow'}
+                          </Button>
+                          {isFriend ? (
+                            <Button variant="outline" size="lg">
+                              <MessageCircle className="h-4 w-4 mr-2" />
+                              Chat
+                            </Button>
+                          ) : (
+                            <Button variant="outline" size="lg">
+                              <Users className="h-4 w-4 mr-2" />
+                              Add Friend
+                            </Button>
+                          )}
+                        </>
+                      )}
+
+                      {isOwnProfile && (
+                        <div className="flex items-center gap-2">
+                          <Link href="/equip">
+                            <Button variant="outline" className="flex items-center gap-2">
+                              <Crown className="h-4 w-4" />
+                              Manage Styles
+                            </Button>
+                          </Link>
+                          <Button variant="outline" onClick={() => setIsEditDialogOpen(true)}>
+                            <Settings className="h-4 w-4 mr-2" />
+                            Edit Profile
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Name and Username */}
+                  <div className="space-y-1">
+                    <div className="relative">
+                      {/* Glitch text effect layers for name */}
+                      {hasGlitchEffect && (
+                        <>
+                          <motion.span
+                            animate={{
+                              x: [-3, 3, -2, 2, 0],
+                              opacity: [0, 0.4, 0, 0.3, 0],
+                            }}
+                            transition={{
+                              duration: 0.1,
+                              repeat: Infinity,
+                              repeatDelay: 2,
+                            }}
+                            className="absolute inset-0 pointer-events-none"
+                            style={{
+                              color: '#ff0000',
+                              mixBlendMode: 'screen',
+                              filter: 'blur(0.5px)',
+                            }}
+                          >
+                            {profile.displayName || profile.name || profile.username}
+                          </motion.span>
+                          <motion.span
+                            animate={{
+                              x: [3, -3, 2, -2, 0],
+                              y: [0, 1, -1, 0.5, -0.5],
+                              opacity: [0, 0.4, 0, 0.3, 0],
+                            }}
+                            transition={{
+                              duration: 0.1,
+                              repeat: Infinity,
+                              repeatDelay: 2,
+                              delay: 0.05,
+                            }}
+                            className="absolute inset-0 pointer-events-none"
+                            style={{
+                              color: '#00ffff',
+                              mixBlendMode: 'screen',
+                              filter: 'blur(0.5px)',
+                            }}
+                          >
+                            {profile.displayName || profile.name || profile.username}
+                          </motion.span>
+                        </>
+                      )}
+                      <h1 
+                        className="text-3xl font-bold relative"
+                        style={nameStyle}
+                      >
+                        {profile.displayName || profile.name || profile.username}
+                      </h1>
+                    </div>
+                    <p className="text-muted-foreground">@{profile.username}</p>
+                    
+                    {/* Show style info if not default */}
+                    {styleDescription && (
+                      <div className="flex items-center gap-2 mt-2">
+                        <div className="flex items-center gap-1 text-xs text-muted-foreground bg-muted px-3 py-1.5 rounded-full">
+                          <Palette className="h-3 w-3" />
+                          <span>{styleDescription}</span>
+                          {profile.nameEffect === 'gradient' && (
+                            <Sparkles className="h-3 w-3 text-purple-500 ml-1" />
+                          )}
+                          {profile.nameEffect === 'moving-gradient' && (
+                            <Sparkles className="h-3 w-3 text-purple-500 ml-1 animate-pulse" />
+                          )}
+                          {profile.nameEffect === 'nebula' && (
+                            <Sparkles className="h-3 w-3 text-purple-500 ml-1" />
+                          )}
+                          {profile.nameEffect === 'glitch' && (
+                            <Sparkles className="h-3 w-3 text-green-500 ml-1" />
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Bio */}
+                  {profile.bio && (
+                    <p className="mt-4 text-foreground">{profile.bio}</p>
+                  )}
+
+                  {/* Location, Website, Joined */}
+                  <div className="mt-4 flex flex-wrap gap-x-6 gap-y-2 text-muted-foreground text-sm">
+                      {profile.occupation && (
+                          <div className="flex items-center gap-2">
+                              <Briefcase className="h-4 w-4" />
+                              <span>{profile.occupation}</span>
+                          </div>
+                      )}
+                      {profile.location && (
+                        <div className="flex items-center gap-2">
+                          <MapPin className="h-4 w-4" />
+                          <span>{profile.location}</span>
+                        </div>
+                      )}
+                      {profile.website && (
+                           <a href={profile.website} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 hover:text-foreground transition-colors">
+                              <LinkIcon className="h-4 w-4" />
+                              <span>{profile.website.replace(/^(https?:\/\/)?(www\.)?/, '')}</span>
+                          </a>
+                      )}
+                      <div className="flex items-center gap-2">
+                          <CalendarDays className="h-4 w-4" />
+                          <span>Joined {creationDate}</span>
+                      </div>
+                  </div>
+
+                  {/* Stats */}
+                  <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4 text-center">
+                     <div className="p-2 rounded-lg transition-colors hover:bg-muted">
+                         <p className="font-bold text-lg">{posts.length}</p>
+                         <p className="text-sm text-muted-foreground">Chirps</p>
+                     </div>
+                     <div className="p-2 rounded-lg transition-colors hover:bg-muted">
+                         <p className="font-bold text-lg">{profile?.following?.length || 0}</p>
+                         <p className="text-sm text-muted-foreground">Following</p>
+                     </div>
+                      <div className="p-2 rounded-lg transition-colors hover:bg-muted">
+                         <p className="font-bold text-lg">{profile?.followers?.length || 0}</p>
+                         <p className="text-sm text-muted-foreground">Followers</p>
+                     </div>
+                     <div className="p-2 rounded-lg transition-colors hover:bg-muted">
+                          <p className="font-bold text-lg">{likedPosts.length}</p>
+                          <p className="text-sm text-muted-foreground">Likes</p>
+                      </div>
+                      <div className="p-2 rounded-lg transition-colors hover:bg-muted">
+                          <p className="font-bold text-lg">{comments.length}</p>
+                          <p className="text-sm text-muted-foreground">Comments</p>
+                      </div>
+                  </div>
                 </div>
-            </div>
+              </CardContent>
+            </Card>
 
             <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
                 <TabsList className="grid w-full grid-cols-4">

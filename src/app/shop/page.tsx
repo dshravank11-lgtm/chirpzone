@@ -10,7 +10,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
-import { Sparkles, Palette, Type, Award, AlertCircle, ShoppingBag, Eye, Crown, Shield, Check, Zap, ChevronRight, Star, Gift, TrendingUp, Users } from 'lucide-react';
+import { Sparkles, Palette, Type, Award, AlertCircle, ShoppingBag, Eye, Crown, Shield, Check, Zap, ChevronRight, Star, Gift, TrendingUp, Users, Flame, Cloud, Cpu } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 import { Separator } from '@/components/ui/separator';
@@ -91,6 +91,74 @@ const rotateVariants = {
   },
 };
 
+const nebulaOrbitVariants = {
+  animate: {
+    rotate: 360,
+    transition: {
+      duration: 15,
+      repeat: Infinity,
+      ease: 'linear',
+    },
+  },
+};
+
+const glitchVariants = {
+  animate: {
+    x: [0, -2, 2, -2, 2, 0],
+    y: [0, 1, -1, 1, -1, 0],
+    opacity: [1, 0.8, 1, 0.8, 1],
+    transition: {
+      duration: 0.3,
+      repeat: Infinity,
+      repeatDelay: 3,
+    },
+  },
+};
+
+const starPulseVariants = {
+  animate: {
+    scale: [1, 1.2, 1],
+    opacity: [0.3, 0.8, 0.3],
+    transition: {
+      duration: 2,
+      repeat: Infinity,
+      ease: 'easeInOut',
+    },
+  },
+};
+
+const pixelShiftVariants = {
+  animate: {
+    x: [0, 2, -2, 0],
+    y: [0, -1, 1, 0],
+    transition: {
+      duration: 0.1,
+      repeat: Infinity,
+      repeatDelay: 5,
+    },
+  },
+};
+
+// Define the new effects for the shop
+const SPECIAL_EFFECTS: ShopItem[] = [
+  {
+    name: 'Nebula Swirl',
+    type: 'special-effect',
+    value: 'nebula',
+    price: 1200,
+    description: 'A cosmic swirling galaxy with orbiting stars and nebula clouds',
+    rarity: 'epic',
+  },
+  {
+    name: 'Digital Glitch',
+    type: 'special-effect',
+    value: 'glitch',
+    price: 1000,
+    description: 'Retro computer glitch effect with digital noise and binary rain',
+    rarity: 'epic',
+  }
+];
+
 export default function ShopPage() {
   const { user } = useAuth();
   const [chirpScore, setChirpScore] = useState(0);
@@ -100,6 +168,7 @@ export default function ShopPage() {
   });
   const [selectedColor, setSelectedColor] = useState<ShopItem | null>(null);
   const [selectedFont, setSelectedFont] = useState<ShopItem | null>(null);
+  const [selectedEffect, setSelectedEffect] = useState<ShopItem | null>(null);
   const [previewUsername, setPreviewUsername] = useState('@username');
   const [isPurchasing, setIsPurchasing] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -153,7 +222,7 @@ export default function ShopPage() {
       });
       return;
     }
-
+  
     setIsPurchasing(true);
     try {
       await purchaseItem(user.uid, item, discountedPrice);
@@ -177,11 +246,15 @@ export default function ShopPage() {
       } else if (item.type === 'moving-gradient') {
         setCurrentStyle(prev => ({ ...prev, color: item.value, effect: 'moving-gradient' }));
         setSelectedColor(null);
+      } else if (item.type === 'special-effect') {
+        setCurrentStyle(prev => ({ ...prev, effect: item.value }));
+        setSelectedEffect(null);
       }
       
     } catch (error) {
+      console.error('Purchase error:', error);
       toast.error('Purchase failed', {
-        description: 'Please try again later.',
+        description: error.message || 'Please try again later.',
       });
     } finally {
       setIsPurchasing(false);
@@ -194,6 +267,7 @@ export default function ShopPage() {
     const itemsToPurchase = [];
     if (selectedColor) itemsToPurchase.push(selectedColor);
     if (selectedFont) itemsToPurchase.push(selectedFont);
+    if (selectedEffect) itemsToPurchase.push(selectedEffect);
     
     if (itemsToPurchase.length === 0) return;
     
@@ -223,6 +297,7 @@ export default function ShopPage() {
       // Clear selections
       setSelectedColor(null);
       setSelectedFont(null);
+      setSelectedEffect(null);
       setShowPurchasePanel(false);
       
     } catch (error) {
@@ -241,17 +316,24 @@ export default function ShopPage() {
       };
 
       const colorValue = selectedColor?.value || currentStyle.color;
-      const effect = selectedColor?.type === 'gradient' ? 'gradient' : 
+      const effect = selectedEffect?.value || 
+                    selectedColor?.type === 'gradient' ? 'gradient' : 
                     selectedColor?.type === 'moving-gradient' ? 'moving-gradient' : 
                     currentStyle.effect;
 
-      if (effect === 'none') {
+      if (effect === 'none' || effect === 'nebula' || effect === 'glitch') {
         style.color = colorValue;
+        if (effect === 'nebula') {
+          style.textShadow = '0 0 20px rgba(138, 43, 226, 0.8), 0 0 40px rgba(75, 0, 130, 0.6)';
+        } else if (effect === 'glitch') {
+          style.textShadow = '1px 0 #00ff00, -1px 0 #ff00ff';
+        }
       } else if (effect === 'gradient') {
         style.backgroundImage = colorValue;
         style.WebkitBackgroundClip = 'text';
         style.WebkitTextFillColor = 'transparent';
         style.backgroundClip = 'text';
+        style.textShadow = '0 0 10px rgba(255, 87, 34, 0.3)';
       } else if (effect === 'moving-gradient') {
         style.backgroundImage = colorValue;
         style.backgroundSize = '200% 200%';
@@ -259,15 +341,18 @@ export default function ShopPage() {
         style.WebkitTextFillColor = 'transparent';
         style.backgroundClip = 'text';
         style.animation = 'gradientMove 3s ease infinite';
+        style.textShadow = '0 0 10px rgba(255, 87, 34, 0.3)';
       }
 
       return style;
     };
-  }, [selectedFont, selectedColor, currentStyle]);
+  }, [selectedFont, selectedColor, selectedEffect, currentStyle]);
 
   const renderNamePreview = () => {
     const previewStyle = getPreviewStyle();
     const displayName = user?.name || 'Your Name';
+    const hasNebulaEffect = selectedEffect?.value === 'nebula' || currentStyle.effect === 'nebula';
+    const hasGlitchEffect = selectedEffect?.value === 'glitch' || currentStyle.effect === 'glitch';
 
     return (
       <div className="space-y-6">
@@ -300,15 +385,353 @@ export default function ShopPage() {
             Real-time Preview
           </motion.h3>
           
-          <motion.h1 
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: 0.4, type: 'spring', stiffness: 80 }}
-            className="text-4xl font-bold transition-all duration-300 mb-2 relative z-10"
-            style={previewStyle}
-          >
-            {displayName}
-          </motion.h1>
+          <div className="relative inline-block min-h-[150px]">
+            {/* Vortex Effect (replacing Nebula) */}
+            {hasNebulaEffect && (
+              <>
+                {/* Spinning Vortex Rings */}
+                {[...Array(8)].map((_, i) => (
+                  <motion.div
+                    key={`vortex-ring-${i}`}
+                    animate={{
+                      rotate: 360,
+                      scale: [1, 1.15, 1],
+                      opacity: [0.3, 0.6, 0.3],
+                    }}
+                    transition={{
+                      rotate: {
+                        duration: 6 - i * 0.3,
+                        repeat: Infinity,
+                        ease: 'linear',
+                      },
+                      scale: {
+                        duration: 2,
+                        repeat: Infinity,
+                        ease: 'easeInOut',
+                        delay: i * 0.2,
+                      },
+                      opacity: {
+                        duration: 2,
+                        repeat: Infinity,
+                        ease: 'easeInOut',
+                        delay: i * 0.2,
+                      },
+                    }}
+                    className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none"
+                    style={{
+                      width: `${80 + i * 25}px`,
+                      height: `${80 + i * 25}px`,
+                      border: '2px solid',
+                      borderColor: `rgba(147, 112, 219, ${0.4 - i * 0.04})`,
+                      borderRadius: '50%',
+                      filter: 'blur(2px)',
+                    }}
+                  />
+                ))}
+                
+                {/* Central Glowing Core */}
+                <motion.div
+                  animate={{
+                    scale: [1, 1.3, 1],
+                    opacity: [0.6, 1, 0.6],
+                  }}
+                  transition={{
+                    duration: 2.5,
+                    repeat: Infinity,
+                    ease: 'easeInOut',
+                  }}
+                  className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
+                  style={{
+                    width: '80px',
+                    height: '80px',
+                    background: 'radial-gradient(circle, rgba(138, 43, 226, 0.8) 0%, rgba(147, 112, 219, 0.4) 40%, transparent 70%)',
+                    borderRadius: '50%',
+                    filter: 'blur(20px)',
+                  }}
+                />
+
+                {/* Spiraling Energy Particles */}
+                {[...Array(24)].map((_, i) => (
+                  <motion.div
+                    key={`spiral-${i}`}
+                    animate={{
+                      rotate: 360,
+                    }}
+                    transition={{
+                      duration: 4,
+                      repeat: Infinity,
+                      ease: 'linear',
+                      delay: i * 0.15,
+                    }}
+                    className="absolute left-1/2 top-1/2"
+                    style={{
+                      transformOrigin: '0 0',
+                    }}
+                  >
+                    <motion.div
+                      animate={{
+                        scale: [0, 1, 0],
+                        opacity: [0, 1, 0],
+                      }}
+                      transition={{
+                        duration: 4,
+                        repeat: Infinity,
+                        ease: 'easeOut',
+                        delay: i * 0.15,
+                      }}
+                      style={{
+                        width: '6px',
+                        height: '6px',
+                        borderRadius: '50%',
+                        background: `radial-gradient(circle, rgba(${147 + i * 2}, ${112 + i}, 219, 0.9) 0%, transparent 70%)`,
+                        transform: `translateX(${40 + i * 8}px)`,
+                        filter: 'blur(1px)',
+                      }}
+                    />
+                  </motion.div>
+                ))}
+
+                {/* Flowing Energy Waves */}
+                {[...Array(3)].map((_, i) => (
+                  <motion.div
+                    key={`wave-${i}`}
+                    animate={{
+                      scale: [0.5, 2.5],
+                      opacity: [0.6, 0],
+                    }}
+                    transition={{
+                      duration: 3,
+                      repeat: Infinity,
+                      ease: 'easeOut',
+                      delay: i * 1,
+                    }}
+                    className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
+                    style={{
+                      width: '100px',
+                      height: '100px',
+                      border: '3px solid rgba(138, 43, 226, 0.5)',
+                      borderRadius: '50%',
+                      filter: 'blur(3px)',
+                    }}
+                  />
+                ))}
+              </>
+            )}
+
+            {/* Enhanced Glitch Effect */}
+            {hasGlitchEffect && (
+              <>
+                {/* Animated Glitch Layers */}
+                <motion.div
+                  animate={{
+                    x: [0, -3, 3, -2, 2, 0],
+                    opacity: [0, 0.5, 0.3, 0.6, 0.2, 0],
+                  }}
+                  transition={{
+                    duration: 0.8,
+                    repeat: Infinity,
+                    repeatDelay: 2,
+                    ease: 'easeInOut',
+                  }}
+                  className="absolute inset-0 pointer-events-none"
+                  style={{
+                    background: 'linear-gradient(90deg, transparent 0%, rgba(255, 0, 0, 0.3) 50%, transparent 100%)',
+                    mixBlendMode: 'screen',
+                  }}
+                />
+                
+                <motion.div
+                  animate={{
+                    x: [0, 3, -3, 2, -2, 0],
+                    opacity: [0, 0.4, 0.5, 0.3, 0.4, 0],
+                  }}
+                  transition={{
+                    duration: 0.8,
+                    repeat: Infinity,
+                    repeatDelay: 2,
+                    delay: 0.1,
+                    ease: 'easeInOut',
+                  }}
+                  className="absolute inset-0 pointer-events-none"
+                  style={{
+                    background: 'linear-gradient(90deg, transparent 0%, rgba(0, 255, 255, 0.3) 50%, transparent 100%)',
+                    mixBlendMode: 'screen',
+                  }}
+                />
+
+                {/* Horizontal Scan Lines */}
+                {[...Array(8)].map((_, i) => (
+                  <motion.div
+                    key={`scanline-${i}`}
+                    animate={{
+                      x: ['-100%', '200%'],
+                      opacity: [0, 0.8, 0],
+                    }}
+                    transition={{
+                      duration: 1.5,
+                      repeat: Infinity,
+                      delay: i * 0.3,
+                      ease: 'linear',
+                      repeatDelay: 1,
+                    }}
+                    className="absolute"
+                    style={{
+                      top: `${i * 15}%`,
+                      width: '40%',
+                      height: '2px',
+                      background: 'rgba(0, 255, 0, 0.6)',
+                      filter: 'blur(1px)',
+                    }}
+                  />
+                ))}
+
+                {/* RGB Split Effect */}
+                <motion.div
+                  animate={{
+                    opacity: [0, 0.3, 0],
+                  }}
+                  transition={{
+                    duration: 0.15,
+                    repeat: Infinity,
+                    repeatDelay: 3,
+                  }}
+                  className="absolute inset-0 pointer-events-none"
+                  style={{
+                    background: 'repeating-linear-gradient(0deg, rgba(255,0,0,0.1) 0px, rgba(0,255,0,0.1) 1px, rgba(0,0,255,0.1) 2px, transparent 3px, transparent 6px)',
+                    mixBlendMode: 'screen',
+                  }}
+                />
+
+                {/* Digital Noise Blocks */}
+                {[...Array(15)].map((_, i) => (
+                  <motion.div
+                    key={`noise-block-${i}`}
+                    animate={{
+                      x: [0, Math.random() * 10 - 5],
+                      opacity: [0, 0.7, 0],
+                      scaleX: [1, 1.2, 1],
+                    }}
+                    transition={{
+                      duration: 0.2,
+                      repeat: Infinity,
+                      delay: i * 0.15,
+                      repeatDelay: 2,
+                    }}
+                    className="absolute"
+                    style={{
+                      left: `${Math.random() * 90}%`,
+                      top: `${Math.random() * 90}%`,
+                      width: `${Math.random() * 30 + 10}px`,
+                      height: `${Math.random() * 4 + 2}px`,
+                      background: Math.random() > 0.5 ? 'rgba(0, 255, 0, 0.6)' : 'rgba(255, 0, 255, 0.6)',
+                    }}
+                  />
+                ))}
+
+                {/* Falling Binary Code */}
+                {[...Array(12)].map((_, i) => (
+                  <motion.div
+                    key={`binary-${i}`}
+                    animate={{
+                      y: [-50, 250],
+                      opacity: [0, 1, 0],
+                    }}
+                    transition={{
+                      duration: Math.random() * 2 + 2,
+                      repeat: Infinity,
+                      delay: Math.random() * 3,
+                      ease: 'linear',
+                    }}
+                    className="absolute text-xs font-mono"
+                    style={{
+                      left: `${5 + i * 7.5}%`,
+                      color: '#00ff00',
+                      textShadow: '0 0 5px rgba(0, 255, 0, 0.8)',
+                      fontFamily: 'monospace',
+                      fontWeight: 'bold',
+                    }}
+                  >
+                    {Array.from({ length: 3 }, () => Math.random() > 0.5 ? '1' : '0').join('')}
+                  </motion.div>
+                ))}
+
+                {/* Glitch Flicker Overlay */}
+                <motion.div
+                  animate={{
+                    opacity: [0, 0.1, 0, 0.2, 0],
+                  }}
+                  transition={{
+                    duration: 0.1,
+                    repeat: Infinity,
+                    repeatDelay: 4,
+                  }}
+                  className="absolute inset-0"
+                  style={{
+                    background: 'rgba(255, 255, 255, 0.9)',
+                    mixBlendMode: 'overlay',
+                  }}
+                />
+              </>
+            )}
+
+            <motion.h1 
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ 
+                opacity: 1, 
+                scale: 1,
+              }}
+              transition={{ 
+                delay: 0.4,
+                duration: 0.5,
+              }}
+              className="text-4xl font-bold transition-all duration-300 mb-2 relative z-10"
+              style={previewStyle}
+            >
+              {/* Additional glitch effect on text */}
+              {hasGlitchEffect && (
+                <>
+                  <motion.span
+                    animate={{
+                      x: [-2, 2],
+                      opacity: [0, 0.5],
+                    }}
+                    transition={{
+                      duration: 0.1,
+                      repeat: Infinity,
+                      repeatDelay: 3,
+                    }}
+                    className="absolute inset-0"
+                    style={{
+                      color: '#ff0000',
+                      mixBlendMode: 'screen',
+                    }}
+                  >
+                    {displayName}
+                  </motion.span>
+                  <motion.span
+                    animate={{
+                      x: [2, -2],
+                      opacity: [0, 0.5],
+                    }}
+                    transition={{
+                      duration: 0.1,
+                      repeat: Infinity,
+                      repeatDelay: 3,
+                      delay: 0.05,
+                    }}
+                    className="absolute inset-0"
+                    style={{
+                      color: '#00ffff',
+                      mixBlendMode: 'screen',
+                    }}
+                  >
+                    {displayName}
+                  </motion.span>
+                </>
+              )}
+              {displayName}
+            </motion.h1>
+          </div>
           
           <motion.div 
             initial={{ opacity: 0, y: 10 }}
@@ -317,12 +740,74 @@ export default function ShopPage() {
             className="mt-4 p-4 bg-white/50 dark:bg-gray-800/50 rounded-lg relative z-10 border border-white/20"
           >
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">Username Preview:</p>
-            <p 
-              className="text-xl font-semibold"
-              style={previewStyle}
-            >
-              {previewUsername}
-            </p>
+            <div className="relative inline-block">
+              {(hasNebulaEffect || hasGlitchEffect) && (
+                <div className="absolute inset-0 -m-6 pointer-events-none">
+                  {hasNebulaEffect && (
+                    <>
+                      {/* Mini Vortex */}
+                      {[...Array(4)].map((_, i) => (
+                        <motion.div
+                          key={`mini-vortex-${i}`}
+                          animate={{
+                            rotate: 360,
+                            scale: [1, 1.1, 1],
+                          }}
+                          transition={{
+                            rotate: {
+                              duration: 4 - i * 0.5,
+                              repeat: Infinity,
+                              ease: 'linear',
+                            },
+                            scale: {
+                              duration: 1.5,
+                              repeat: Infinity,
+                              ease: 'easeInOut',
+                              delay: i * 0.2,
+                            },
+                          }}
+                          className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
+                          style={{
+                            width: `${40 + i * 15}px`,
+                            height: `${40 + i * 15}px`,
+                            border: '1px solid',
+                            borderColor: `rgba(147, 112, 219, ${0.5 - i * 0.1})`,
+                            borderRadius: '50%',
+                            filter: 'blur(1px)',
+                          }}
+                        />
+                      ))}
+                    </>
+                  )}
+                  
+                  {hasGlitchEffect && (
+                    <>
+                      <motion.div
+                        animate={{
+                          opacity: [0, 0.3, 0],
+                        }}
+                        transition={{
+                          duration: 0.15,
+                          repeat: Infinity,
+                          repeatDelay: 3,
+                        }}
+                        className="absolute inset-0"
+                        style={{
+                          background: 'rgba(0, 255, 0, 0.2)',
+                          mixBlendMode: 'screen',
+                        }}
+                      />
+                    </>
+                  )}
+                </div>
+              )}
+              <p 
+                className="text-xl font-semibold relative z-10"
+                style={previewStyle}
+              >
+                {previewUsername}
+              </p>
+            </div>
           </motion.div>
           
           <motion.p 
@@ -334,13 +819,6 @@ export default function ShopPage() {
             This is how others will see your name and username
           </motion.p>
         </motion.div>
-        
-        <style jsx global>{`
-          @keyframes gradientMove {
-            0%, 100% { background-position: 0% 50%; }
-            50% { background-position: 100% 50%; }
-          }
-        `}</style>
       </div>
     );
   };
@@ -354,7 +832,19 @@ export default function ShopPage() {
   };
 
   const handleSelectItem = (item: ShopItem) => {
-    if (item.type === 'font' || item.type === 'color' || item.type === 'gradient' || item.type === 'moving-gradient') {
+    // Check for Nebula or Digital Glitch
+    if (item.value === 'nebula' || item.value === 'glitch') {
+      const itemName = item.name;
+      const confirmed = window.confirm(
+        `⚠️ BETA VERSION - ${itemName}\n\nThis effect is in beta and might have issues. Are you sure you want to proceed?`
+      );
+      
+      if (!confirmed) {
+        return; // Don't proceed if user cancels
+      }
+    }
+    
+    if (item.type === 'font' || item.type === 'color' || item.type === 'gradient' || item.type === 'moving-gradient' || item.type === 'special-effect') {
       const userOwns = userOwnsItem(userProfile, item);
       const isEquipped = isItemEquipped(userProfile, item);
       
@@ -371,6 +861,8 @@ export default function ShopPage() {
       
       if (item.type === 'font') {
         setSelectedFont(item);
+      } else if (item.type === 'special-effect') {
+        setSelectedEffect(item);
       } else {
         setSelectedColor(item);
       }
@@ -444,7 +936,7 @@ export default function ShopPage() {
                       ) : (
                         <Shield className="h-3 w-3 mr-1" />
                       )}
-                      {userRole === 'superadmin' ? 'Super Admin' : 'Moderator'} Discount
+                      {userRole === 'superadmin' ? 'Super Admin Discount' : 'Moderator Discount'}
                     </Badge>
                   </motion.div>
                 )}
@@ -620,6 +1112,19 @@ export default function ShopPage() {
                             <span>{selectedColor?.name || 'Orange'}</span>
                           </div>
                         </div>
+                        {selectedEffect && (
+                          <div className="flex items-center justify-between text-sm">
+                            <span className="text-muted-foreground">Special Effect:</span>
+                            <div className="flex items-center gap-2">
+                              {selectedEffect.value === 'nebula' ? (
+                                <Cloud className="w-4 h-4 text-purple-500" />
+                              ) : (
+                                <Cpu className="w-4 h-4 text-green-500" />
+                              )}
+                              <span>{selectedEffect.name}</span>
+                            </div>
+                          </div>
+                        )}
                         <div className="flex items-center justify-between text-sm">
                           <span className="text-muted-foreground">Current ChirpScore:</span>
                           <span className="font-medium text-[#ff990a]">{chirpScore.toLocaleString()}</span>
@@ -737,13 +1242,13 @@ export default function ShopPage() {
                   animate={{ opacity: 1 }}
                   transition={{ delay: 0.4 }}
                 >
-                  <TabsList className="grid grid-cols-2 mb-6 bg-muted/50">
+                  <TabsList className="grid grid-cols-3 mb-6 bg-muted/50">
                     <TabsTrigger 
                       value="colors" 
                       className="flex items-center gap-2 data-[state=active]:bg-[#ff990a] data-[state=active]:text-white rounded-lg transition-all"
                     >
                       <Palette className="h-4 w-4" />
-                      Colors & Gradients
+                      Colors
                     </TabsTrigger>
                     <TabsTrigger 
                       value="fonts" 
@@ -751,6 +1256,13 @@ export default function ShopPage() {
                     >
                       <Type className="h-4 w-4" />
                       Fonts
+                    </TabsTrigger>
+                    <TabsTrigger 
+                      value="effects" 
+                      className="flex items-center gap-2 data-[state=active]:bg-[#ff990a] data-[state=active]:text-white rounded-lg transition-all"
+                    >
+                      <Flame className="h-4 w-4" />
+                      Effects
                     </TabsTrigger>
                   </TabsList>
                 </motion.div>
@@ -889,6 +1401,45 @@ export default function ShopPage() {
                     ))}
                   </motion.div>
                 </TabsContent>
+
+                <TabsContent value="effects" className="space-y-4">
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: 0.5 }}
+                  >
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-lg font-semibold text-[#ff990a] flex items-center gap-2">
+                        <Flame className="h-4 w-4 animate-pulse" />
+                        Special Effects
+                      </h3>
+                      <Badge variant="outline" className="text-xs bg-gradient-to-r from-purple-50 to-blue-50">
+                        Epic
+                      </Badge>
+                    </div>
+                    <motion.div 
+                      className="grid grid-cols-1 sm:grid-cols-2 gap-4"
+                      variants={containerVariants}
+                      initial="hidden"
+                      animate="visible"
+                    >
+                      {SPECIAL_EFFECTS.map((item) => (
+                        <motion.div key={`${item.name}-${item.type}`} variants={itemVariants}>
+                          <ShopItemCard
+                            item={item}
+                            isSelected={selectedEffect?.value === item.value}
+                            onSelect={handleSelectItem}
+                            chirpScore={chirpScore}
+                            userRole={userRole}
+                            userProfile={userProfile}
+                            isEpic={true}
+                            getColorPreviewStyle={getColorPreviewStyle}
+                          />
+                        </motion.div>
+                      ))}
+                    </motion.div>
+                  </motion.div>
+                </TabsContent>
               </Tabs>
             </motion.div>
           </div>
@@ -896,7 +1447,7 @@ export default function ShopPage() {
 
         {/* Purchase Panel - Fixed at bottom on mobile, sidebar on desktop */}
         <AnimatePresence>
-          {showPurchasePanel && (selectedColor || selectedFont) && (
+          {showPurchasePanel && (selectedColor || selectedFont || selectedEffect) && (
             <>
               {/* Mobile Purchase Panel */}
               <motion.div
@@ -910,6 +1461,7 @@ export default function ShopPage() {
                   <PurchasePanel
                     selectedColor={selectedColor}
                     selectedFont={selectedFont}
+                    selectedEffect={selectedEffect}
                     userRole={userRole}
                     chirpScore={chirpScore}
                     isPurchasing={isPurchasing}
@@ -917,6 +1469,7 @@ export default function ShopPage() {
                     onCancel={() => {
                       setSelectedColor(null);
                       setSelectedFont(null);
+                      setSelectedEffect(null);
                       setShowPurchasePanel(false);
                     }}
                     getDiscountedPrice={getDiscountedPrice}
@@ -935,6 +1488,7 @@ export default function ShopPage() {
                 <PurchasePanel
                   selectedColor={selectedColor}
                   selectedFont={selectedFont}
+                  selectedEffect={selectedEffect}
                   userRole={userRole}
                   chirpScore={chirpScore}
                   isPurchasing={isPurchasing}
@@ -942,6 +1496,7 @@ export default function ShopPage() {
                   onCancel={() => {
                     setSelectedColor(null);
                     setSelectedFont(null);
+                    setSelectedEffect(null);
                     setShowPurchasePanel(false);
                   }}
                   getDiscountedPrice={getDiscountedPrice}
@@ -958,15 +1513,17 @@ export default function ShopPage() {
 function PurchasePanel({
   selectedColor,
   selectedFont,
+  selectedEffect,
   userRole,
   chirpScore,
   isPurchasing,
   onPurchaseAll,
   onCancel,
-  getDiscountedPrice
+  getDiscountedPrice,
 }: {
   selectedColor: ShopItem | null;
   selectedFont: ShopItem | null;
+  selectedEffect: ShopItem | null;
   userRole: 'superadmin' | 'moderator' | 'user';
   chirpScore: number;
   isPurchasing: boolean;
@@ -975,7 +1532,8 @@ function PurchasePanel({
   getDiscountedPrice: (item: ShopItem) => number;
 }) {
   const totalPrice = (selectedColor ? getDiscountedPrice(selectedColor) : 0) + 
-                     (selectedFont ? getDiscountedPrice(selectedFont) : 0);
+                     (selectedFont ? getDiscountedPrice(selectedFont) : 0) +
+                     (selectedEffect ? getDiscountedPrice(selectedEffect) : 0);
   const canAfford = chirpScore >= totalPrice;
 
   return (
@@ -1068,6 +1626,39 @@ function PurchasePanel({
                       transition={{ type: 'spring', stiffness: 200, delay: 0.05 }}
                     >
                       {getDiscountedPrice(selectedFont)} pts
+                    </motion.span>
+                  </div>
+                </motion.div>
+              )}
+
+              {selectedEffect && (
+                <motion.div 
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.2 }}
+                  className="flex items-center justify-between py-1"
+                >
+                  <div className="flex items-center gap-2">
+                    {selectedEffect.value === 'nebula' ? (
+                      <Cloud className="h-4 w-4 text-purple-500 animate-pulse" />
+                    ) : (
+                      <Cpu className="h-4 w-4 text-green-500 animate-pulse" />
+                    )}
+                    <span className="font-medium">{selectedEffect.name}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {userRole !== 'user' && selectedEffect.price > 0 && (
+                      <span className="text-xs text-muted-foreground line-through">
+                        {selectedEffect.price}
+                      </span>
+                    )}
+                    <motion.span 
+                      className="font-bold text-[#ff990a]"
+                      initial={{ scale: 1.2 }}
+                      animate={{ scale: 1 }}
+                      transition={{ type: 'spring', stiffness: 200, delay: 0.1 }}
+                    >
+                      {getDiscountedPrice(selectedEffect)} pts
                     </motion.span>
                   </div>
                 </motion.div>
@@ -1175,6 +1766,7 @@ function ShopItemCard({
   userRole,
   userProfile,
   isOwned = false,
+  isEpic = false,
   getColorPreviewStyle,
 }: { 
   item: ShopItem;
@@ -1185,6 +1777,7 @@ function ShopItemCard({
   userRole: 'superadmin' | 'moderator' | 'user';
   userProfile?: any;
   isOwned?: boolean;
+  isEpic?: boolean;
   getColorPreviewStyle?: (item: ShopItem) => React.CSSProperties;
 }) {
   const calculateDiscountedPrice = (originalPrice: number): number => {
@@ -1221,9 +1814,19 @@ function ShopItemCard({
           isSelected ? 'ring-2 ring-[#ff990a] border-[#ff990a] shadow-lg' : 'border-gray-200'
         } ${!isClickable ? 'opacity-75' : ''} rounded-xl h-full ${
           isClickable ? 'cursor-pointer hover:border-[#ff990a] hover:shadow-md' : 'cursor-default'
-        } overflow-hidden relative`}
+        } overflow-hidden relative ${
+          isEpic ? 'bg-gradient-to-br from-purple-50/50 to-blue-50/50 dark:from-purple-950/30 dark:to-blue-950/20' : ''
+        }`}
         onClick={isClickable ? handleClick : undefined}
       >
+        {/* Epic effect background */}
+        {isEpic && (
+          <motion.div
+            animate={shimmerVariants.animate}
+            className="absolute inset-0 bg-gradient-to-r from-transparent via-purple-100/10 to-transparent bg-[length:200%_100%] pointer-events-none"
+          />
+        )}
+        
         {/* Ownership badges */}
         {userOwns && (
           <motion.div 
@@ -1262,6 +1865,23 @@ function ShopItemCard({
           </motion.div>
         )}
         
+        {/* Epic Badge */}
+        {isEpic && !userOwns && (
+          <motion.div 
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            transition={{ type: 'spring', stiffness: 200, delay: 0.05 }}
+            className="absolute -top-2 left-1/2 -translate-x-1/2 z-10 bg-gradient-to-r from-purple-500 to-blue-500 text-white text-xs font-bold px-3 py-1 rounded-full shadow-lg border border-purple-300"
+          >
+            {item.value === 'nebula' ? (
+              <Cloud className="h-3 w-3 inline mr-1" />
+            ) : (
+              <Cpu className="h-3 w-3 inline mr-1" />
+            )}
+            EPIC
+          </motion.div>
+        )}
+        
         <CardContent className="p-4 h-full flex flex-col">
           {item.type === 'font' ? (
             <div className="space-y-4 flex-1">
@@ -1282,6 +1902,142 @@ function ShopItemCard({
                 <p className="text-sm text-muted-foreground flex-1" style={{ fontFamily: item.value }}>
                   The quick brown fox jumps over the lazy dog
                 </p>
+              </div>
+            </div>
+          ) : item.type === 'special-effect' ? (
+            <div className="space-y-4 flex-1">
+              <motion.div 
+                className="h-16 rounded-lg transition-all border shadow-inner flex items-center justify-center relative overflow-hidden"
+                whileHover={{ scale: 1.05 }}
+                style={{
+                  background: item.value === 'nebula' 
+                    ? 'linear-gradient(135deg, #4b0082, #8a2be2, #9370db)'
+                    : 'linear-gradient(135deg, #001100, #003300, #005500)'
+                }}
+              >
+                {item.value === 'nebula' ? (
+                  <>
+                    {/* Mini Nebula Preview */}
+                    <motion.div
+                      animate={nebulaOrbitVariants.animate}
+                      className="absolute inset-0"
+                      style={{ 
+                        transformOrigin: 'center',
+                        animationDuration: '8s',
+                      }}
+                    >
+                      {/* Central glowing orb */}
+                      <motion.div
+                        animate={starPulseVariants.animate}
+                        className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
+                        style={{
+                          width: '30px',
+                          height: '30px',
+                          background: 'radial-gradient(circle, rgba(138, 43, 226, 0.6) 0%, rgba(75, 0, 130, 0.3) 50%, transparent 100%)',
+                          borderRadius: '50%',
+                          filter: 'blur(5px)',
+                        }}
+                      />
+                      
+                      {/* Orbiting stars */}
+                      {[...Array(6)].map((_, i) => (
+                        <motion.div
+                          key={i}
+                          animate={starPulseVariants.animate}
+                          style={{
+                            animationDelay: `${i * 0.2}s`,
+                          }}
+                          className="absolute"
+                          style={{
+                            left: '50%',
+                            top: '50%',
+                            transform: `rotate(${i * 60}deg) translateY(-25px)`,
+                            width: '4px',
+                            height: '4px',
+                            borderRadius: '50%',
+                            background: `radial-gradient(circle, rgba(147,112,219,0.9) 0%, rgba(138,43,226,0.6) 70%, transparent 100%)`,
+                            filter: 'blur(1px)',
+                          }}
+                        />
+                      ))}
+                    </motion.div>
+                  </>
+                ) : (
+                  <>
+                    {/* Glitch Effect Preview */}
+                    <motion.div
+                      variants={glitchVariants}
+                      animate="animate"
+                      className="absolute inset-0"
+                      style={{
+                        mixBlendMode: 'screen',
+                      }}
+                    >
+                      {/* Glitch lines */}
+                      <div 
+                        className="absolute inset-0"
+                        style={{
+                          background: 'linear-gradient(45deg, transparent 45%, rgba(0, 255, 0, 0.2) 50%, transparent 55%)',
+                          backgroundSize: '20px 20px',
+                          opacity: 0.5,
+                        }}
+                      />
+                    </motion.div>
+                    
+                    {/* Binary code */}
+                    <div className="absolute inset-0 overflow-hidden">
+                      {[...Array(5)].map((_, i) => (
+                        <motion.div
+                          key={i}
+                          animate={{
+                            y: ['-20%', '120%'],
+                            opacity: [0, 0.8, 0],
+                          }}
+                          transition={{
+                            duration: Math.random() * 1.5 + 1,
+                            repeat: Infinity,
+                            delay: Math.random() * 2,
+                            ease: 'linear',
+                          }}
+                          className="absolute text-xs font-mono text-green-400"
+                          style={{
+                            left: `${10 + i * 15}%`,
+                            fontFamily: 'monospace',
+                            opacity: 0,
+                          }}
+                        >
+                          {Math.random() > 0.5 ? '101' : '010'}
+                        </motion.div>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </motion.div>
+              <div className="text-center flex-1 flex flex-col">
+                <h4 className="font-medium mb-1">{item.name}</h4>
+                <p className="text-xs text-muted-foreground flex-1">
+                  {item.description}
+                </p>
+                <motion.p 
+                  className="text-xs mt-2 flex items-center justify-center gap-1"
+                  animate={{ scale: [1, 1.05, 1] }}
+                  transition={{ duration: 2, repeat: Infinity }}
+                  style={{
+                    color: item.value === 'nebula' ? '#8a2be2' : '#00ff00'
+                  }}
+                >
+                  {item.value === 'nebula' ? (
+                    <>
+                      <Cloud className="h-3 w-3" />
+                      Cosmic Animation
+                    </>
+                  ) : (
+                    <>
+                      <Cpu className="h-3 w-3" />
+                      Digital Glitch
+                    </>
+                  )}
+                </motion.p>
               </div>
             </div>
           ) : (
@@ -1325,7 +2081,9 @@ function ShopItemCard({
                 }
                 className={`rounded-lg ${
                   userOwns ? 'bg-green-100 text-green-800 hover:bg-green-200 border-green-200' :
-                  canAfford || discountedPrice === 0 ? 'bg-gradient-to-r from-[#ff990a] to-orange-500' : ''
+                  canAfford || discountedPrice === 0 ? 
+                    isEpic ? 'bg-gradient-to-r from-purple-500 to-blue-500' :
+                    'bg-gradient-to-r from-[#ff990a] to-orange-500' : ''
                 }`}
               >
                 {userOwns ? 'OWNED' : discountedPrice === 0 ? 'FREE' : `${discountedPrice.toLocaleString()} pts`}

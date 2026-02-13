@@ -8,6 +8,11 @@ const PrivacyPolicyPage: React.FC = () => {
     <div className="container mx-auto p-4">
       <h1 className="text-3xl font-bold mb-4">Privacy Policy</h1>
 
+      <h2 className="text-2xl font-semibold mb-3 mt-6">Data We Collect</h2>
+      <p className="mb-2">We collect transaction history from ChirpScore to provide support and improve our services. ChirpScore, the virtual currency has no real-world value and cannot be exchanged for cash.</p>
+
+
+
       <h2 className="text-2xl font-semibold mb-3 mt-6">Your Rights: Data Access and Deletion</h2>
       <p className="mb-2">You have the right to request the deletion of your personal data. At ChirpZone, we provide two ways to do this:</p>
 

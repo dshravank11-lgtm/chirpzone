@@ -15,7 +15,7 @@ import AppLayout from '@/components/app-layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
-import { Palette, Type, Sparkles, Check, RotateCcw, Crown, ArrowRight, X } from 'lucide-react';
+import { Palette, Type, Sparkles, Check, RotateCcw, Crown, ArrowRight, X, Cloud, Cpu } from 'lucide-react';
 import { motion, AnimatePresence, useInView } from 'framer-motion';
 import { toast } from 'sonner';
 import PageTransition from '@/components/page-transition';
@@ -28,6 +28,7 @@ const DEFAULT_PURCHASED_ITEMS = {
   colors: [],
   gradients: [],
   movingGradients: [],
+  effects: [], 
 };
 
 // ─── Animated floating orbs ──────────────────────────────────────────────────
@@ -74,6 +75,24 @@ function StaggerItem({ index, children }: { index: number; children: React.React
   );
 }
 
+// Define special effects items
+const SPECIAL_EFFECTS = [
+  {
+    name: 'Nebula Swirl',
+    type: 'special-effect',
+    value: 'nebula',
+    description: 'Cosmic swirling galaxy effect',
+    rarity: 'epic',
+  },
+  {
+    name: 'Digital Glitch',
+    type: 'special-effect',
+    value: 'glitch',
+    description: 'Retro computer glitch effect',
+    rarity: 'epic',
+  }
+];
+
 export default function EquipPage() {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
@@ -119,14 +138,36 @@ export default function EquipPage() {
     const style: React.CSSProperties = {
       fontFamily: styleItem?.type === 'font' ? styleItem.value : equippedStyle.font,
     };
+    
     let colorValue = equippedStyle.color;
     let effect = equippedStyle.effect;
+    
     if (styleItem) {
-      if (styleItem.type === 'color') { colorValue = styleItem.value; effect = 'none'; }
-      else if (styleItem.type === 'gradient') { colorValue = styleItem.value; effect = 'gradient'; }
-      else if (styleItem.type === 'moving-gradient') { colorValue = styleItem.value; effect = 'moving-gradient'; }
+      if (styleItem.type === 'color') { 
+        colorValue = styleItem.value; 
+        effect = 'none'; 
+      }
+      else if (styleItem.type === 'gradient') { 
+        colorValue = styleItem.value; 
+        effect = 'gradient'; 
+      }
+      else if (styleItem.type === 'moving-gradient') { 
+        colorValue = styleItem.value; 
+        effect = 'moving-gradient'; 
+      }
+      else if (styleItem.type === 'special-effect') {
+        effect = styleItem.value;
+      }
     }
-    if (effect === 'none') {
+    
+    // Apply text shadow for special effects
+    if (effect === 'nebula') {
+      style.textShadow = '0 0 20px rgba(138, 43, 226, 0.8), 0 0 40px rgba(75, 0, 130, 0.6)';
+    } else if (effect === 'glitch') {
+      style.textShadow = '1px 0 #00ff00, -1px 0 #ff00ff';
+    }
+    
+    if (effect === 'none' || effect === 'nebula' || effect === 'glitch') {
       style.color = colorValue;
     } else if (effect === 'gradient') {
       style.backgroundImage = colorValue;
@@ -141,6 +182,7 @@ export default function EquipPage() {
       style.backgroundClip = 'text';
       style.animation = 'gradientMove 3s ease infinite';
     }
+    
     return style;
   };
 
@@ -149,7 +191,6 @@ export default function EquipPage() {
     
     setIsEquipping(true);
     try {
-      
       const styleToEquip: any = {};
       
       if (selectedItem.type === 'font') {
@@ -163,6 +204,8 @@ export default function EquipPage() {
       } else if (selectedItem.type === 'moving-gradient') {
         styleToEquip.nameColor = selectedItem.value;
         styleToEquip.nameEffect = 'moving-gradient';
+      } else if (selectedItem.type === 'special-effect') {
+        styleToEquip.nameEffect = selectedItem.value;
       }
       
       await equipStyle(user.uid, selectedItem);
@@ -226,12 +269,16 @@ export default function EquipPage() {
 
   const previewStyle = getStylePreview();
 
-  // ─── Collect all purchased color-type items into one flat list ──────────
   const allColorItems = [
     ...(purchasedItems?.colors?.map(v => SHOP_ITEMS.colors.find(c => c.value === v)).filter(Boolean) || []),
     ...(purchasedItems?.gradients?.map(v => SHOP_ITEMS.gradients.find(g => g.value === v)).filter(Boolean) || []),
     ...(purchasedItems?.movingGradients?.map(v => SHOP_ITEMS.movingGradients.find(mg => mg.value === v)).filter(Boolean) || []),
-  ] as any[];
+  ];
+
+  // Get purchased special effects
+  const purchasedEffects = (purchasedItems?.effects || [])
+    .map(effectValue => SPECIAL_EFFECTS.find(e => e.value === effectValue))
+    .filter(Boolean) as any[];
 
   return (
     <AppLayout>
@@ -278,7 +325,7 @@ export default function EquipPage() {
                   </h1>
                   {/* description */}
                   <p className="text-sm text-gray-500 dark:text-gray-400 mt-1.5 max-w-md">
-                    Equip and manage the colors, gradients, and fonts you've purchased — and see exactly how your name looks to others.
+                    Equip and manage the colors, gradients, fonts, and effects you've purchased — and see exactly how your name looks to others.
                   </p>
                 </div>
               </div>
@@ -329,33 +376,105 @@ export default function EquipPage() {
                     backgroundSize: '28px 28px',
                   }}
                 />
+                
+                {/* Special Effects Overlay */}
+                {equippedStyle.effect === 'nebula' && (
+                  <>
+                    {/* Nebula particles */}
+                    {[...Array(15)].map((_, i) => (
+                      <motion.div
+                        key={`nebula-${i}`}
+                        animate={{
+                          x: [0, (Math.random() - 0.5) * 40],
+                          y: [0, -Math.random() * 40 - 20],
+                          opacity: [0, 0.7, 0],
+                        }}
+                        transition={{
+                          duration: Math.random() * 4 + 2,
+                          repeat: Infinity,
+                          delay: Math.random() * 3,
+                        }}
+                        className="absolute rounded-full"
+                        style={{
+                          left: `${Math.random() * 100}%`,
+                          top: `${Math.random() * 100}%`,
+                          width: `${Math.random() * 6 + 2}px`,
+                          height: `${Math.random() * 6 + 2}px`,
+                          background: `radial-gradient(circle, rgba(147,112,219,0.8) 0%, transparent 70%)`,
+                          filter: 'blur(1px)',
+                        }}
+                      />
+                    ))}
+                  </>
+                )}
+                
+                {equippedStyle.effect === 'glitch' && (
+                  <>
+                    {/* Glitch scan lines */}
+                    <motion.div
+                      className="absolute inset-0"
+                      animate={{
+                        opacity: [0, 0.2, 0],
+                      }}
+                      transition={{
+                        duration: 0.3,
+                        repeat: Infinity,
+                        repeatDelay: 3,
+                      }}
+                      style={{
+                        background: 'linear-gradient(to bottom, transparent 50%, rgba(0, 255, 0, 0.1) 50%)',
+                        backgroundSize: '100% 4px',
+                      }}
+                    />
+                    {/* Digital noise */}
+                    {[...Array(20)].map((_, i) => (
+                      <motion.div
+                        key={`noise-${i}`}
+                        animate={{
+                          opacity: [0, Math.random(), 0],
+                        }}
+                        transition={{
+                          duration: Math.random() * 0.5 + 0.1,
+                          repeat: Infinity,
+                          delay: Math.random() * 2,
+                        }}
+                        className="absolute"
+                        style={{
+                          left: `${Math.random() * 100}%`,
+                          top: `${Math.random() * 100}%`,
+                          width: '2px',
+                          height: '2px',
+                          background: Math.random() > 0.5 ? '#00ff00' : '#ff00ff',
+                        }}
+                      />
+                    ))}
+                  </>
+                )}
+
                 <div className="relative">
                   <motion.h1
                     className="text-4xl sm:text-5xl font-bold"
                     style={previewStyle}
                     key={`name-${selectedItem?.value || 'none'}-${equippedStyle.color}-${equippedStyle.font}`}
                     initial={{ scale: 0.92, opacity: 0.5 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    transition={{ duration: 0.38, ease: [0.34, 1.56, 0.64, 1] }}
+                    animate={{ 
+                      scale: 1, 
+                      opacity: 1,
+                    }}
+                    transition={{ 
+                      duration: 0.38, 
+                      ease: [0.34, 1.56, 0.64, 1],
+                    }}
                   >
                     {userProfile?.name || 'Your Name'}
                   </motion.h1>
-                  <motion.p
-                    className="text-lg mt-2 text-gray-400"
-                    key={`user-${userProfile?.username}`}
-                    initial={{ opacity: 0, y: 6 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.3, delay: 0.1 }}
-                  >
-                    @{userProfile?.username}
-                  </motion.p>
                 </div>
 
                 {/* style meta pills */}
                 <div className="relative mt-6 flex flex-wrap justify-center gap-2">
                   {[
                     { label: 'Font', value: equippedStyle.font.split(',')[0] },
-                    { label: 'Effect', value: equippedStyle.effect.replace('-', ' ') },
+                    { label: 'Effect', value: equippedStyle.effect === 'none' ? 'None' : equippedStyle.effect === 'nebula' ? 'Nebula Swirl' : equippedStyle.effect === 'glitch' ? 'Digital Glitch' : equippedStyle.effect.replace('-', ' ') },
                   ].map(pill => (
                     <span key={pill.label} className="inline-flex items-center gap-1.5 bg-gray-800 dark:bg-gray-700 border border-gray-700 dark:border-gray-600 text-gray-300 text-xs px-3 py-1 rounded-full">
                       <span className="text-[#ff990a] font-semibold">{pill.label}:</span> {pill.value}
@@ -398,8 +517,8 @@ export default function EquipPage() {
             </CardContent>
           </Card>
 
-          {/* ─── Two-column item lists ─────────────────────────────────────── */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {/* ─── Three-column item lists ─────────────────────────────────────── */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
 
             {/* Fonts */}
             <Card className="border border-gray-200 dark:border-gray-700 rounded-2xl bg-white dark:bg-gray-900 shadow-sm overflow-hidden">
@@ -457,7 +576,7 @@ export default function EquipPage() {
                   <Palette className="h-5 w-5 text-purple-500" /> Colors & Effects
                 </CardTitle>
                 <CardDescription className="text-gray-500 dark:text-gray-400 text-xs">
-                  Select a color or gradient to equip
+                  Select a color, gradient, or effect to equip
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -507,7 +626,90 @@ export default function EquipPage() {
                 </div>
               </CardContent>
             </Card>
+
+            {/* Special Effects */}
+            <Card className="border border-gray-200 dark:border-gray-700 rounded-2xl bg-white dark:bg-gray-900 shadow-sm overflow-hidden">
+              <CardHeader className="pb-2">
+                <CardTitle className="flex items-center gap-2 text-gray-900 dark:text-white text-base">
+                  <Sparkles className="h-5 w-5 text-[#ff990a]" /> Special Effects
+                </CardTitle>
+                <CardDescription className="text-gray-500 dark:text-gray-400 text-xs">
+                  {purchasedEffects.length === 0 ? (
+                    <span>No effects yet. <Link href="/shop" className="text-[#ff990a] hover:underline">Visit shop →</Link></span>
+                  ) : 'Select an effect to equip'}
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2 max-h-[380px] overflow-y-auto pr-1">
+                  {/* Default - No Effect */}
+                  <EquipItemRow
+                    index={0}
+                    isEquipped={equippedStyle.effect === 'none'}
+                    isSelected={selectedItem?.value === 'none' && selectedItem?.type === 'special-effect'}
+                    onSelect={() => setSelectedItem({ 
+                      type: 'special-effect', 
+                      name: 'No Effect (Default)', 
+                      value: 'none' 
+                    })}
+                    icon={<div className="w-6 h-6 rounded-full border border-gray-300 dark:border-gray-600 bg-gray-200 dark:bg-gray-700" />}
+                    title="No Effect (Default)"
+                    subtitle="Plain text appearance"
+                  />
+                  
+                  {/* Purchased Effects */}
+                  {purchasedEffects.map((effectItem, i) => (
+                    <EquipItemRow
+                      key={effectItem.value}
+                      index={i + 1}
+                      isEquipped={isItemEquipped(userProfile, effectItem)}
+                      isSelected={selectedItem?.value === effectItem.value && selectedItem?.type === 'special-effect'}
+                      onSelect={() => setSelectedItem(effectItem)}
+                      icon={
+                        <div className="w-6 h-6 rounded-md border border-gray-300 dark:border-gray-600 flex items-center justify-center" 
+                          style={{
+                            background: effectItem.value === 'nebula' 
+                              ? 'linear-gradient(135deg, #4b0082, #8a2be2, #9370db)'
+                              : 'linear-gradient(135deg, #001100, #003300, #005500)'
+                          }}
+                        >
+                          {effectItem.value === 'nebula' ? (
+                            <Cloud className="h-3.5 w-3.5 text-white" />
+                          ) : (
+                            <Cpu className="h-3.5 w-3.5 text-white" />
+                          )}
+                        </div>
+                      }
+                      title={effectItem.name}
+                      subtitle={
+                        effectItem.value === 'nebula'
+                          ? <span className="flex items-center gap-0.5 text-purple-500"><Cloud className="h-3 w-3" /> Cosmic effect</span>
+                          : <span className="flex items-center gap-0.5 text-green-500"><Cpu className="h-3 w-3" /> Digital glitch</span>
+                      }
+                    />
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
           </div>
+
+          {/* Quick Shop Link */}
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+            className="text-center"
+          >
+            <Link href="/shop">
+              <Button 
+                variant="outline" 
+                className="w-full sm:w-auto border-[#ff990a] text-[#ff990a] hover:bg-[#ff990a] hover:text-white transition-colors"
+              >
+                <Sparkles className="h-4 w-4 mr-2" />
+                Need more styles? Visit the shop
+                <ArrowRight className="h-4 w-4 ml-2" />
+              </Button>
+            </Link>
+          </motion.div>
         </div>
       </PageTransition>
 
@@ -515,6 +717,74 @@ export default function EquipPage() {
         @keyframes gradientMove {
           0%, 100% { background-position: 0% 50%; }
           50%      { background-position: 100% 50%; }
+        }
+        
+        @keyframes nebulaPulse {
+          0%, 100% { opacity: 0.3; }
+          50% { opacity: 0.7; }
+        }
+        
+        @keyframes glitch {
+          0% {
+            clip-path: inset(40% 0 61% 0);
+            transform: translate(-2px, 2px);
+          }
+          5% {
+            clip-path: inset(92% 0 1% 0);
+            transform: translate(2px, -2px);
+          }
+          10% {
+            clip-path: inset(43% 0 1% 0);
+            transform: translate(0px, -1px);
+          }
+          15% {
+            clip-path: inset(25% 0 58% 0);
+            transform: translate(-2px, 0px);
+          }
+          20% {
+            clip-path: inset(54% 0 7% 0);
+            transform: translate(1px, 2px);
+          }
+          45% {
+            clip-path: inset(58% 0 43% 0);
+            transform: translate(0px, -2px);
+          }
+          50% {
+            clip-path: inset(98% 0 1% 0);
+            transform: translate(-1px, 1px);
+          }
+          55% {
+            clip-path: inset(75% 0 9% 0);
+            transform: translate(2px, 0px);
+          }
+          60% {
+            clip-path: inset(83% 0 7% 0);
+            transform: translate(-1px, 2px);
+          }
+          75% {
+            clip-path: inset(68% 0 14% 0);
+            transform: translate(1px, -1px);
+          }
+          80% {
+            clip-path: inset(21% 0 18% 0);
+            transform: translate(-2px, 0px);
+          }
+          85% {
+            clip-path: inset(45% 0 33% 0);
+            transform: translate(0px, 1px);
+          }
+          90% {
+            clip-path: inset(73% 0 9% 0);
+            transform: translate(2px, -2px);
+          }
+          95% {
+            clip-path: inset(91% 0 6% 0);
+            transform: translate(-1px, 2px);
+          }
+          100% {
+            clip-path: inset(0);
+            transform: translate(0);
+          }
         }
       `}</style>
     </AppLayout>

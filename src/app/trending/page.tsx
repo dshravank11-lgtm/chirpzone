@@ -1,4 +1,3 @@
-// /app/trending/page.tsx - UPDATED VERSION with styled names
 'use client';
 
 import AppLayout from '@/components/app-layout';
@@ -6,7 +5,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Crown, Flame, UserPlus, TrendingUp, MessageCircle, Users, MoreHorizontal, Palette, Sparkles } from 'lucide-react';
+import { Crown, Flame, UserPlus, TrendingUp, MessageCircle, Users, MoreHorizontal, Palette, Sparkles, Eye } from 'lucide-react';
 import Link from 'next/link';
 import { useToast } from '@/components/ui/use-toast';
 import PageTransition from '@/components/page-transition';
@@ -19,6 +18,114 @@ import Podium from '@/components/podium';
 import { ChirpScore } from '@/components/ui/chirp-score';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+
+// Animation variants
+const rotateVariants = {
+  animate: {
+    rotate: 360,
+    transition: {
+      duration: 20,
+      repeat: Infinity,
+      ease: 'linear',
+    },
+  },
+};
+
+const floatingVariants = {
+  animate: {
+    y: [0, -5, 0],
+    transition: {
+      duration: 2,
+      repeat: Infinity,
+      ease: 'easeInOut',
+    },
+  },
+};
+
+// Preview Component
+const NamePreview = ({ user }) => {
+  const displayName = user?.name || 'Your Name';
+  const hasNebulaEffect = user?.nameEffect === 'nebula';
+  const hasGlitchEffect = user?.nameEffect === 'glitch';
+  const previewStyle = {
+    fontFamily: user?.nameFont || 'PT Sans, sans-serif',
+    color: user?.nameColor || '#ff990a',
+  };
+
+  return (
+    <motion.div 
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="mb-6 text-center p-4 bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-950/20 dark:to-orange-900/10 rounded-xl border border-orange-200 dark:border-orange-800 relative overflow-hidden"
+    >
+      <motion.div
+        animate={rotateVariants.animate}
+        className="absolute -top-10 -right-10 w-20 h-20 bg-gradient-to-br from-orange-200/20 to-transparent rounded-full blur-2xl"
+      />
+      
+      <div className="relative inline-block">
+        {/* Simplified Vortex Effect */}
+        {hasNebulaEffect && (
+          <motion.div
+            animate={{
+              rotate: 360,
+              scale: [1, 1.1, 1],
+            }}
+            transition={{
+              rotate: {
+                duration: 10,
+                repeat: Infinity,
+                ease: 'linear',
+              },
+              scale: {
+                duration: 3,
+                repeat: Infinity,
+                ease: 'easeInOut',
+              },
+            }}
+            className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
+            style={{
+              width: '80px',
+              height: '80px',
+              border: '2px solid rgba(147, 112, 219, 0.4)',
+              borderRadius: '50%',
+              filter: 'blur(1px)',
+            }}
+          />
+        )}
+
+        {/* Simplified Glitch Effect */}
+        {hasGlitchEffect && (
+          <motion.div
+            animate={{
+              x: [0, -2, 2, -1, 1, 0],
+              opacity: [0, 0.3, 0.2, 0.3, 0, 0],
+            }}
+            transition={{
+              duration: 0.5,
+              repeat: Infinity,
+              repeatDelay: 2,
+            }}
+            className="absolute inset-0 pointer-events-none"
+            style={{
+              background: 'linear-gradient(90deg, transparent 0%, rgba(255, 0, 0, 0.2) 50%, transparent 100%)',
+              mixBlendMode: 'screen',
+            }}
+          />
+        )}
+
+        <motion.h1 
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="text-2xl font-bold transition-all duration-300 relative z-10"
+          style={previewStyle}
+        >
+          {displayName}
+        </motion.h1>
+      </div>
+    </motion.div>
+  );
+};
 
 // Helper function to get styled name
 const getStyledName = (user: any) => {
@@ -41,6 +148,12 @@ const getStyledName = (user: any) => {
     style.WebkitBackgroundClip = 'text';
     style.WebkitTextFillColor = 'transparent';
     style.backgroundClip = 'text';
+  } else if (user.nameEffect === 'nebula') {
+    style.color = user.nameColor || '#ff990a';
+    style.textShadow = '0 0 10px rgba(178, 115, 237, 0.8)';
+  } else if (user.nameEffect === 'glitch') {
+    style.color = user.nameColor || '#ff990a';
+    style.textShadow = '1px 0 #00ff00, -1px 0 #ff00ff';
   }
 
   return style;
@@ -58,6 +171,8 @@ const getStyleDescription = (user: any) => {
   let effectText = '';
   if (effect === 'gradient') effectText = 'with gradient';
   if (effect === 'moving-gradient') effectText = 'with animated gradient';
+  if (effect === 'nebula') effectText = 'with nebula effect';
+  if (effect === 'glitch') effectText = 'with glitch effect';
   
   return `${fontName} font ${effectText}`;
 };
@@ -426,6 +541,7 @@ export default function TrendingPage() {
   const [hotPosts, setHotPosts] = useState([]);
   const [mostFollowed, setMostFollowed] = useState<User[]>([]);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  const [currentUserProfile, setCurrentUserProfile] = useState(null);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -439,7 +555,23 @@ export default function TrendingPage() {
     };
 
     fetchData();
-}, [user?.chirpScore]); // Re-fetch leaderboard when local user score changes
+  }, [user?.chirpScore]);
+
+  // Fetch current user profile for preview
+  useEffect(() => {
+    const fetchCurrentUserProfile = async () => {
+      if (user?.uid) {
+        try {
+          const profile = await getUserProfile(user.uid);
+          setCurrentUserProfile(profile);
+        } catch (error) {
+          console.error("Error fetching current user profile:", error);
+        }
+      }
+    };
+
+    fetchCurrentUserProfile();
+  }, [user?.uid]);
 
   const handleFollowToggle = (userId: string) => {
     setMostFollowed(prevUsers =>
@@ -608,6 +740,14 @@ export default function TrendingPage() {
                                     />
                                 </TabsList>
                             </div>
+                            
+                            {/* Add Name Preview Component Here */}
+                            {currentUserProfile && (
+                              <div className="px-4 pb-4">
+                                <NamePreview user={currentUserProfile} />
+                              </div>
+                            )}
+                            
                             <div className="relative min-h-[400px] overflow-hidden">
                                 <AnimatePresence initial={false} custom={direction} mode="wait">
                                     <motion.div

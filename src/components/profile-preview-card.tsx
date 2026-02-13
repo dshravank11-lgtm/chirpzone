@@ -11,38 +11,70 @@ import { useAuth } from '@/hooks/use-auth';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { motion, AnimatePresence } from 'framer-motion';
 
-// Helper function to get styled name
+// Animation variants
+const rotateVariants = {
+  animate: {
+    rotate: 360,
+    transition: {
+      duration: 20,
+      repeat: Infinity,
+      ease: "linear"
+    }
+  }
+};
+
+const floatingVariants = {
+  animate: {
+    y: [0, -5, 0],
+    transition: {
+      duration: 2,
+      repeat: Infinity,
+      ease: "easeInOut"
+    }
+  }
+};
+
 const getStyledName = (user: any) => {
   if (!user) return {};
   
   const style: React.CSSProperties = {
     fontFamily: user.nameFont || 'PT Sans, sans-serif',
+    position: 'relative' as const,
+    zIndex: 10,
   };
 
-  if (user.nameEffect === 'none') {
-    style.color = user.nameColor || '#ff990a';
-  } else if (user.nameEffect === 'gradient') {
-    style.backgroundImage = user.nameColor || 'linear-gradient(90deg, #ff990a, #ff6b00)';
+  const colorValue = user.nameColor || '#ff990a';
+  const effect = user.nameEffect || 'none';
+
+  if (effect === 'none') {
+    style.color = colorValue;
+  } else if (effect === 'gradient') {
+    style.backgroundImage = colorValue;
     style.WebkitBackgroundClip = 'text';
     style.WebkitTextFillColor = 'transparent';
     style.backgroundClip = 'text';
-  } else if (user.nameEffect === 'moving-gradient') {
-    style.backgroundImage = user.nameColor || 'linear-gradient(90deg, #ff990a, #ff6b00)';
+  } else if (effect === 'moving-gradient') {
+    style.backgroundImage = colorValue;
     style.backgroundSize = '200% 200%';
     style.WebkitBackgroundClip = 'text';
     style.WebkitTextFillColor = 'transparent';
     style.backgroundClip = 'text';
     style.animation = 'gradientMove 3s ease infinite';
+  } else if (effect === 'nebula') {
+    style.color = colorValue;
+    style.textShadow = '0 0 20px rgba(138, 43, 226, 0.8), 0 0 40px rgba(75, 0, 130, 0.6)';
+  } else if (effect === 'glitch') {
+    style.color = colorValue;
+    style.textShadow = '1px 0 #00ff00, -1px 0 #ff00ff';
   }
 
   return style;
 };
 
-// Helper to get style description
 const getStyleDescription = (user: any) => {
   if (!user) return null;
   
-  if (!user.nameFont && !user.nameColor) return null;
+  if (!user.nameFont && !user.nameColor && !user.nameEffect) return null;
   
   const fontName = user.nameFont?.split(',')[0] || 'Default';
   const effect = user.nameEffect || 'none';
@@ -50,14 +82,21 @@ const getStyleDescription = (user: any) => {
   let effectText = '';
   if (effect === 'gradient') effectText = 'with gradient';
   if (effect === 'moving-gradient') effectText = 'with animated gradient';
+  if (effect === 'nebula') effectText = 'with nebula effect';
+  if (effect === 'glitch') effectText = 'with glitch effect';
   
   return `${fontName} font ${effectText}`;
 };
 
-export function ProfilePreviewCard({ userId, onOpenChange }) {
+interface ProfilePreviewCardProps {
+  userId: string;
+  onOpenChange: (open: boolean) => void;
+}
+
+export function ProfilePreviewCard({ userId, onOpenChange }: ProfilePreviewCardProps) {
   const { user: authUser } = useAuth();
-  const [userProfile, setUserProfile] = useState(null);
-  const [currentUserProfile, setCurrentUserProfile] = useState(null);
+  const [userProfile, setUserProfile] = useState<any>(null);
+  const [currentUserProfile, setCurrentUserProfile] = useState<any>(null);
   const [isFollowing, setIsFollowing] = useState(false);
   const [isFriend, setIsFriend] = useState(false);
   const [isRequestSent, setIsRequestSent] = useState(false);
@@ -134,6 +173,11 @@ export function ProfilePreviewCard({ userId, onOpenChange }) {
     await sendFriendRequest(authUser.uid, userId);
   };
 
+  // Get effect from user profile
+  const nameEffect = userProfile?.nameEffect || 'none';
+  const hasNebulaEffect = nameEffect === 'nebula';
+  const hasGlitchEffect = nameEffect === 'glitch';
+
   if (loading) {
     return (
       <AnimatePresence>
@@ -169,7 +213,7 @@ export function ProfilePreviewCard({ userId, onOpenChange }) {
     return null;
   }
 
-  const { name, username, avatarUrl, followers, bio, following, nameFont, nameColor, nameEffect } = userProfile;
+  const { name, username, avatarUrl, followers, bio, following, nameFont, nameColor } = userProfile;
   const fallback = name?.substring(0, 2).toUpperCase() || 'U';
   const nameStyle = getStyledName(userProfile);
   const styleDescription = getStyleDescription(userProfile);
@@ -199,10 +243,309 @@ export function ProfilePreviewCard({ userId, onOpenChange }) {
               className="bg-gradient-to-br from-background via-background to-muted/10 border-2 border-[#ffa600]/20 rounded-xl shadow-2xl p-6 max-w-sm w-full relative overflow-hidden"
               onClick={(e) => e.stopPropagation()}
             >
-              {/* Close button */}
+              {/* Vortex Effect (replacing Nebula) */}
+              {hasNebulaEffect && (
+                <>
+                  {/* Spinning Vortex Rings */}
+                  {[...Array(6)].map((_, i) => (
+                    <motion.div
+                      key={`preview-vortex-ring-${i}`}
+                      animate={{
+                        rotate: 360,
+                        scale: [1, 1.12, 1],
+                        opacity: [0.25, 0.5, 0.25],
+                      }}
+                      transition={{
+                        rotate: {
+                          duration: 8 - i * 0.5,
+                          repeat: Infinity,
+                          ease: 'linear',
+                        },
+                        scale: {
+                          duration: 3,
+                          repeat: Infinity,
+                          ease: 'easeInOut',
+                          delay: i * 0.25,
+                        },
+                        opacity: {
+                          duration: 3,
+                          repeat: Infinity,
+                          ease: 'easeInOut',
+                          delay: i * 0.25,
+                        },
+                      }}
+                      className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none"
+                      style={{
+                        width: `${100 + i * 30}px`,
+                        height: `${100 + i * 30}px`,
+                        border: '2px solid',
+                        borderColor: `rgba(147, 112, 219, ${0.4 - i * 0.05})`,
+                        borderRadius: '50%',
+                        filter: 'blur(2px)',
+                        zIndex: 0,
+                      }}
+                    />
+                  ))}
+                  
+                  {/* Central Glowing Core */}
+                  <motion.div
+                    animate={{
+                      scale: [1, 1.25, 1],
+                      opacity: [0.5, 0.9, 0.5],
+                    }}
+                    transition={{
+                      duration: 3,
+                      repeat: Infinity,
+                      ease: 'easeInOut',
+                    }}
+                    className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none"
+                    style={{
+                      width: '120px',
+                      height: '120px',
+                      background: 'radial-gradient(circle, rgba(138, 43, 226, 0.7) 0%, rgba(147, 112, 219, 0.4) 40%, transparent 70%)',
+                      borderRadius: '50%',
+                      filter: 'blur(18px)',
+                      zIndex: 0,
+                    }}
+                  />
+
+                  {/* Spiraling Energy Particles */}
+                  {[...Array(20)].map((_, i) => (
+                    <motion.div
+                      key={`preview-spiral-${i}`}
+                      animate={{
+                        rotate: 360,
+                      }}
+                      transition={{
+                        duration: 5,
+                        repeat: Infinity,
+                        ease: 'linear',
+                        delay: i * 0.2,
+                      }}
+                      className="absolute left-1/2 top-1/2 pointer-events-none"
+                      style={{
+                        transformOrigin: '0 0',
+                        zIndex: 0,
+                      }}
+                    >
+                      <motion.div
+                        animate={{
+                          scale: [0, 1, 0],
+                          opacity: [0, 0.8, 0],
+                        }}
+                        transition={{
+                          duration: 3,
+                          repeat: Infinity,
+                          ease: 'easeOut',
+                          delay: i * 0.15,
+                        }}
+                        style={{
+                          width: '6px',
+                          height: '6px',
+                          borderRadius: '50%',
+                          background: `radial-gradient(circle, rgba(${147 + i * 2}, ${112 + i}, 219, 0.9) 0%, transparent 70%)`,
+                          transform: `translateX(${50 + i * 10}px)`,
+                          filter: 'blur(1px)',
+                        }}
+                      />
+                    </motion.div>
+                  ))}
+
+                  {/* Flowing Energy Waves */}
+                  {[...Array(3)].map((_, i) => (
+                    <motion.div
+                      key={`preview-wave-${i}`}
+                      animate={{
+                        scale: [0.5, 2.3],
+                        opacity: [0.5, 0],
+                      }}
+                      transition={{
+                        duration: 3.5,
+                        repeat: Infinity,
+                        ease: 'easeOut',
+                        delay: i * 1.2,
+                      }}
+                      className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none"
+                      style={{
+                        width: '120px',
+                        height: '120px',
+                        border: '3px solid rgba(138, 43, 226, 0.5)',
+                        borderRadius: '50%',
+                        filter: 'blur(3px)',
+                        zIndex: 0,
+                      }}
+                    />
+                  ))}
+                </>
+              )}
+
+              {/* Enhanced Glitch Effect */}
+              {hasGlitchEffect && (
+                <>
+                  {/* Animated Glitch Layers */}
+                  <motion.div
+                    animate={{
+                      x: [0, -3, 3, -2, 2, 0],
+                      opacity: [0, 0.5, 0.3, 0.6, 0.2, 0],
+                    }}
+                    transition={{
+                      duration: 0.8,
+                      repeat: Infinity,
+                      repeatDelay: 2,
+                      ease: 'easeInOut',
+                    }}
+                    className="absolute inset-0 pointer-events-none"
+                    style={{
+                      background: 'linear-gradient(90deg, transparent 0%, rgba(255, 0, 0, 0.3) 50%, transparent 100%)',
+                      mixBlendMode: 'screen',
+                      zIndex: 0,
+                    }}
+                  />
+                  
+                  <motion.div
+                    animate={{
+                      x: [0, 3, -3, 2, -2, 0],
+                      opacity: [0, 0.4, 0.5, 0.3, 0.4, 0],
+                    }}
+                    transition={{
+                      duration: 0.8,
+                      repeat: Infinity,
+                      repeatDelay: 2,
+                      delay: 0.1,
+                      ease: 'easeInOut',
+                    }}
+                    className="absolute inset-0 pointer-events-none"
+                    style={{
+                      background: 'linear-gradient(90deg, transparent 0%, rgba(0, 255, 255, 0.3) 50%, transparent 100%)',
+                      mixBlendMode: 'screen',
+                      zIndex: 0,
+                    }}
+                  />
+
+                  {/* Horizontal Scan Lines */}
+                  {[...Array(6)].map((_, i) => (
+                    <motion.div
+                      key={`preview-scanline-${i}`}
+                      animate={{
+                        x: ['-100%', '200%'],
+                        opacity: [0, 0.8, 0],
+                      }}
+                      transition={{
+                        duration: 1.5,
+                        repeat: Infinity,
+                        delay: i * 0.3,
+                        ease: 'linear',
+                        repeatDelay: 1,
+                      }}
+                      className="absolute pointer-events-none"
+                      style={{
+                        top: `${i * 17}%`,
+                        width: '40%',
+                        height: '2px',
+                        background: 'rgba(0, 255, 0, 0.6)',
+                        filter: 'blur(1px)',
+                        zIndex: 0,
+                      }}
+                    />
+                  ))}
+
+                  {/* RGB Split Effect */}
+                  <motion.div
+                    animate={{
+                      opacity: [0, 0.3, 0],
+                    }}
+                    transition={{
+                      duration: 0.15,
+                      repeat: Infinity,
+                      repeatDelay: 3,
+                    }}
+                    className="absolute inset-0 pointer-events-none"
+                    style={{
+                      background: 'repeating-linear-gradient(0deg, rgba(255,0,0,0.1) 0px, rgba(0,255,0,0.1) 1px, rgba(0,0,255,0.1) 2px, transparent 3px, transparent 6px)',
+                      mixBlendMode: 'screen',
+                      zIndex: 0,
+                    }}
+                  />
+
+                  {/* Digital Noise Blocks */}
+                  {[...Array(12)].map((_, i) => (
+                    <motion.div
+                      key={`preview-noise-block-${i}`}
+                      animate={{
+                        x: [0, Math.random() * 10 - 5],
+                        opacity: [0, 0.7, 0],
+                        scaleX: [1, 1.2, 1],
+                      }}
+                      transition={{
+                        duration: 0.2,
+                        repeat: Infinity,
+                        delay: i * 0.15,
+                        repeatDelay: 2,
+                      }}
+                      className="absolute pointer-events-none"
+                      style={{
+                        left: `${Math.random() * 90}%`,
+                        top: `${Math.random() * 90}%`,
+                        width: `${Math.random() * 30 + 10}px`,
+                        height: `${Math.random() * 4 + 2}px`,
+                        background: Math.random() > 0.5 ? 'rgba(0, 255, 0, 0.6)' : 'rgba(255, 0, 255, 0.6)',
+                        zIndex: 0,
+                      }}
+                    />
+                  ))}
+
+                  {/* Falling Binary Code */}
+                  {[...Array(10)].map((_, i) => (
+                    <motion.div
+                      key={`preview-binary-${i}`}
+                      animate={{
+                        y: [-50, 200],
+                        opacity: [0, 1, 0],
+                      }}
+                      transition={{
+                        duration: Math.random() * 2 + 2,
+                        repeat: Infinity,
+                        delay: Math.random() * 3,
+                        ease: 'linear',
+                      }}
+                      className="absolute text-xs font-mono pointer-events-none"
+                      style={{
+                        left: `${5 + i * 9}%`,
+                        color: '#00ff00',
+                        textShadow: '0 0 5px rgba(0, 255, 0, 0.8)',
+                        fontFamily: 'monospace',
+                        fontWeight: 'bold',
+                        zIndex: 0,
+                      }}
+                    >
+                      {Array.from({ length: 3 }, () => Math.random() > 0.5 ? '1' : '0').join('')}
+                    </motion.div>
+                  ))}
+
+                  {/* Glitch Flicker Overlay */}
+                  <motion.div
+                    animate={{
+                      opacity: [0, 0.1, 0, 0.2, 0],
+                    }}
+                    transition={{
+                      duration: 0.1,
+                      repeat: Infinity,
+                      repeatDelay: 4,
+                    }}
+                    className="absolute inset-0 pointer-events-none"
+                    style={{
+                      background: 'rgba(255, 255, 255, 0.9)',
+                      mixBlendMode: 'overlay',
+                      zIndex: 0,
+                    }}
+                  />
+                </>
+              )}
+
+              {/* Close button - HIGHEST z-index to be clickable */}
               <button 
                 onClick={handleClose} 
-                className="absolute top-4 right-4 p-2 rounded-full bg-muted hover:bg-[#ffa600]/10 transition-colors z-10"
+                className="absolute top-4 right-4 p-2 rounded-full bg-muted hover:bg-[#ffa600]/10 transition-colors z-50"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -210,14 +553,114 @@ export function ProfilePreviewCard({ userId, onOpenChange }) {
               {/* Decorative corner */}
               <div className="absolute -top-8 -right-8 h-20 w-20 bg-gradient-to-br from-[#ffa600] to-transparent rounded-full opacity-10"></div>
               
-              <div className="flex flex-col items-center text-center space-y-4">
+              <div className="flex flex-col items-center text-center space-y-4 relative z-10">
                 {/* Avatar with click handler */}
                 <motion.div 
                   className="relative group cursor-pointer"
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
                 >
-                  <Avatar className="h-24 w-24 mb-2 border-4 border-background shadow-lg group-hover:border-[#ffa600] transition-all">
+                  {/* Avatar effects */}
+                  {hasNebulaEffect && (
+                    <>
+                      {[...Array(3)].map((_, i) => (
+                        <motion.div
+                          key={`avatar-vortex-${i}`}
+                          animate={{
+                            rotate: 360,
+                            scale: [1, 1.08, 1],
+                          }}
+                          transition={{
+                            rotate: {
+                              duration: 6 - i,
+                              repeat: Infinity,
+                              ease: 'linear',
+                            },
+                            scale: {
+                              duration: 2,
+                              repeat: Infinity,
+                              ease: 'easeInOut',
+                              delay: i * 0.3,
+                            },
+                          }}
+                          className="absolute"
+                          style={{
+                            left: '50%',
+                            top: '50%',
+                            transform: 'translate(-50%, -50%)',
+                            width: `${110 + i * 20}px`,
+                            height: `${110 + i * 20}px`,
+                            border: '2px solid',
+                            borderColor: `rgba(147, 112, 219, ${0.4 - i * 0.1})`,
+                            borderRadius: '50%',
+                            filter: 'blur(2px)',
+                          }}
+                        />
+                      ))}
+                      <motion.div
+                        animate={{
+                          scale: [1, 1.15, 1],
+                          opacity: [0.3, 0.6, 0.3],
+                        }}
+                        transition={{
+                          duration: 2.5,
+                          repeat: Infinity,
+                          ease: 'easeInOut',
+                        }}
+                        className="absolute"
+                        style={{
+                          left: '50%',
+                          top: '50%',
+                          transform: 'translate(-50%, -50%)',
+                          width: '140px',
+                          height: '140px',
+                          background: 'radial-gradient(circle, rgba(138, 43, 226, 0.5) 0%, transparent 70%)',
+                          borderRadius: '50%',
+                          filter: 'blur(15px)',
+                        }}
+                      />
+                    </>
+                  )}
+
+                  {hasGlitchEffect && (
+                    <>
+                      <motion.div
+                        animate={{
+                          x: [-2, 2, -1, 1, 0],
+                          opacity: [0, 0.3, 0, 0.2, 0],
+                        }}
+                        transition={{
+                          duration: 0.5,
+                          repeat: Infinity,
+                          repeatDelay: 3,
+                        }}
+                        className="absolute -inset-4"
+                        style={{
+                          background: 'radial-gradient(circle, transparent 30%, rgba(0, 255, 0, 0.2) 50%, transparent 70%)',
+                          mixBlendMode: 'screen',
+                        }}
+                      />
+                      <motion.div
+                        animate={{
+                          x: [2, -2, 1, -1, 0],
+                          opacity: [0, 0.3, 0, 0.2, 0],
+                        }}
+                        transition={{
+                          duration: 0.5,
+                          repeat: Infinity,
+                          repeatDelay: 3,
+                          delay: 0.1,
+                        }}
+                        className="absolute -inset-4"
+                        style={{
+                          background: 'radial-gradient(circle, transparent 30%, rgba(255, 0, 255, 0.2) 50%, transparent 70%)',
+                          mixBlendMode: 'screen',
+                        }}
+                      />
+                    </>
+                  )}
+
+                  <Avatar className="h-24 w-24 mb-2 border-4 border-background shadow-lg group-hover:border-[#ffa600] transition-all relative z-10">
                     <AvatarImage src={avatarUrl} />
                     <AvatarFallback className="bg-gradient-to-br from-[#ffa600] to-orange-600 text-white font-bold text-2xl">
                       {fallback}
@@ -227,12 +670,56 @@ export function ProfilePreviewCard({ userId, onOpenChange }) {
                 
                 {/* Name with styling */}
                 <div className="space-y-1">
-                  <h2 
-                    className="text-2xl font-bold tracking-tight"
-                    style={nameStyle}
-                  >
-                    {name}
-                  </h2>
+                  <div className="relative">
+                    {/* Glitch text effect layers */}
+                    {hasGlitchEffect && (
+                      <>
+                        <motion.span
+                          animate={{
+                            x: [-2, 2],
+                            opacity: [0, 0.5],
+                          }}
+                          transition={{
+                            duration: 0.1,
+                            repeat: Infinity,
+                            repeatDelay: 3,
+                          }}
+                          className="absolute inset-0"
+                          style={{
+                            color: '#ff0000',
+                            mixBlendMode: 'screen',
+                          }}
+                        >
+                          {name}
+                        </motion.span>
+                        <motion.span
+                          animate={{
+                            x: [2, -2],
+                            opacity: [0, 0.5],
+                          }}
+                          transition={{
+                            duration: 0.1,
+                            repeat: Infinity,
+                            repeatDelay: 3,
+                            delay: 0.05,
+                          }}
+                          className="absolute inset-0"
+                          style={{
+                            color: '#00ffff',
+                            mixBlendMode: 'screen',
+                          }}
+                        >
+                          {name}
+                        </motion.span>
+                      </>
+                    )}
+                    <h2 
+                      className="text-2xl font-bold tracking-tight relative"
+                      style={nameStyle}
+                    >
+                      {name}
+                    </h2>
+                  </div>
                   <p className="text-sm text-muted-foreground">@{username}</p>
                   
                   {/* Show style info if not default */}
@@ -246,6 +733,22 @@ export function ProfilePreviewCard({ userId, onOpenChange }) {
                         )}
                         {nameEffect === 'moving-gradient' && (
                           <Sparkles className="h-3 w-3 text-purple-500 animate-pulse" />
+                        )}
+                        {nameEffect === 'nebula' && (
+                          <motion.div
+                            animate={{ rotate: 360 }}
+                            transition={{ duration: 4, repeat: Infinity, ease: 'linear' }}
+                          >
+                            <Sparkles className="h-3 w-3 text-purple-500" />
+                          </motion.div>
+                        )}
+                        {nameEffect === 'glitch' && (
+                          <motion.div
+                            animate={{ opacity: [1, 0, 1] }}
+                            transition={{ duration: 0.2, repeat: Infinity }}
+                          >
+                            <Sparkles className="h-3 w-3 text-green-500" />
+                          </motion.div>
                         )}
                       </div>
                     </div>

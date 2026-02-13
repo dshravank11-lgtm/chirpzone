@@ -22,9 +22,11 @@ import {
     unfriend, 
     sendFriendRequest, 
     findUsersByEmail,
-    getUserProfile
+    searchUsers,
+    getUserProfile,
+    checkIfFriendRequestSent,
+    checkIfFriends
 } from '@/services/firebase';
-import FindFriends from '@/components/find-friends';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ProfilePreviewCard } from '@/components/profile-preview-card';
 
@@ -46,23 +48,49 @@ const getStyledName = (friend: Friend) => {
     fontFamily: friend.nameFont || 'PT Sans, sans-serif',
   };
 
-  if (friend.nameEffect === 'none') {
-    style.color = friend.nameColor || '#ff990a';
-  } else if (friend.nameEffect === 'gradient') {
-    style.backgroundImage = friend.nameColor || 'linear-gradient(90deg, #ff990a, #ff6b00)';
+  const colorValue = friend.nameColor || '#ff990a';
+  const effect = friend.nameEffect || 'none';
+
+  if (effect === 'none') {
+    style.color = colorValue;
+  } else if (effect === 'gradient') {
+    style.backgroundImage = colorValue;
     style.WebkitBackgroundClip = 'text';
     style.WebkitTextFillColor = 'transparent';
     style.backgroundClip = 'text';
-  } else if (friend.nameEffect === 'moving-gradient') {
-    style.backgroundImage = friend.nameColor || 'linear-gradient(90deg, #ff990a, #ff6b00)';
+  } else if (effect === 'moving-gradient') {
+    style.backgroundImage = colorValue;
     style.backgroundSize = '200% 200%';
     style.WebkitBackgroundClip = 'text';
     style.WebkitTextFillColor = 'transparent';
     style.backgroundClip = 'text';
     style.animation = 'gradientMove 3s ease infinite';
+  } else if (effect === 'nebula') {
+    style.color = colorValue;
+    style.textShadow = '0 0 20px rgba(138, 43, 226, 0.8), 0 0 40px rgba(75, 0, 130, 0.6)';
+  } else if (effect === 'glitch') {
+    style.color = colorValue;
+    style.textShadow = '1px 0 #00ff00, -1px 0 #ff00ff';
   }
 
   return style;
+};
+
+const getStyleDescription = (friend: Friend) => {
+  if (!friend) return null;
+  
+  if (!friend.nameFont && !friend.nameColor && !friend.nameEffect) return null;
+  
+  const fontName = friend.nameFont?.split(',')[0] || 'Default';
+  const effect = friend.nameEffect || 'none';
+  
+  let effectText = '';
+  if (effect === 'gradient') effectText = 'with gradient';
+  if (effect === 'moving-gradient') effectText = 'with animated gradient';
+  if (effect === 'nebula') effectText = 'with nebula effect';
+  if (effect === 'glitch') effectText = 'with glitch effect';
+  
+  return `${fontName} font ${effectText}`;
 };
 
 const FriendCard = ({ friend, onUnfriend, onAvatarClick }: { 
@@ -274,6 +302,93 @@ const RequestCard = ({ request, onAccept, onDecline, onAvatarClick }: {
     );
 };
 
+// New component for search results
+const SearchResultCard = ({ user, onAddFriend, isRequestSent, isFriend, onAvatarClick }: {
+  user: any;
+  onAddFriend: (userId: string) => void;
+  isRequestSent: boolean;
+  isFriend: boolean;
+  onAvatarClick: (userId: string) => void;
+}) => {
+    const nameStyle = getStyledName(user);
+    
+    const handleAvatarClick = (e: React.MouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      onAvatarClick(user.id);
+    };
+
+    return (
+        <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3 }}
+            className="group relative overflow-hidden rounded-xl border border-border/50 bg-gradient-to-br from-background to-muted/20 p-5 hover:shadow-lg hover:shadow-[#ffa600]/20 hover:border-[#ffa600]/50 transition-all duration-300"
+        >
+            <div className="absolute inset-0 bg-gradient-to-r from-[#ffa600]/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+            
+            <div className="relative flex flex-col sm:flex-row items-start sm:items-center justify-between space-y-3 sm:space-y-0 sm:space-x-4">
+                <div className="flex items-center space-x-4">
+                    <div 
+                      className="cursor-pointer"
+                      onClick={handleAvatarClick}
+                    >
+                      <Avatar className="h-12 w-12 ring-2 ring-background group-hover:ring-[#ffa600]/50 transition-all hover:scale-105">
+                          <AvatarImage src={user.avatarUrl} data-ai-hint="user avatar" />
+                          <AvatarFallback className="bg-[#ffa600] text-black font-semibold">
+                              {user.name?.substring(0,1).toUpperCase() || '?'}
+                          </AvatarFallback>
+                      </Avatar>
+                    </div>
+                    <div>
+                        <p 
+                          className="text-sm font-semibold leading-none"
+                          style={nameStyle}
+                        >
+                          {user.name}
+                        </p>
+                        <p className="text-sm text-muted-foreground mt-1">@{user.username}</p>
+                    </div>
+                </div>
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                    {isFriend ? (
+                        <Link href={`/chat/${user.id}`} className="flex-1 sm:flex-none">
+                            <Button 
+                                variant="outline" 
+                                size="sm" 
+                                className="w-full sm:w-auto hover:bg-[#ffa600] hover:text-black hover:border-[#ffa600] transition-all"
+                            >
+                                <MessageSquare className="mr-2 h-4 w-4"/>
+                                Chat
+                            </Button>
+                        </Link>
+                    ) : (
+                        <Button 
+                            variant="outline" 
+                            size="sm" 
+                            onClick={() => onAddFriend(user.id)}
+                            disabled={isRequestSent}
+                            className="flex-1 sm:flex-none hover:bg-blue-500 hover:text-white hover:border-blue-500 transition-all disabled:opacity-50"
+                        >
+                            <UserPlus className="mr-2 h-4 w-4"/>
+                            {isRequestSent ? 'Request Sent' : 'Add Friend'}
+                        </Button>
+                    )}
+                    <Link href={`/profile/${user.id}`} className="flex-1 sm:flex-none">
+                        <Button 
+                            variant="outline" 
+                            size="sm" 
+                            className="w-full sm:w-auto hover:bg-[#ffa600] hover:text-black hover:border-[#ffa600] transition-all"
+                        >
+                            View Profile
+                        </Button>
+                    </Link>
+                </div>
+            </div>
+        </motion.div>
+    );
+};
+
 export default function FriendsPage() {
   const { toast } = useToast();
   const { user } = useAuth();
@@ -282,7 +397,10 @@ export default function FriendsPage() {
   const [activeTab, setActiveTab] = useState('all');
   const [direction, setDirection] = useState(0);
   const [findSearchQuery, setFindSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  const [requestSentUsers, setRequestSentUsers] = useState<Set<string>>(new Set());
 
   const TABS = ['all', 'pending', 'find'];
 
@@ -293,6 +411,7 @@ export default function FriendsPage() {
       setActiveTab(newTab);
   };
 
+  // Load friends
   useEffect(() => {
     if (user) {
       const unsubscribeFriends = getUserFriends(user.uid, async (friendList) => {
@@ -350,6 +469,53 @@ export default function FriendsPage() {
     }
   }, [user]);
 
+  // Handle search
+  useEffect(() => {
+    const performSearch = async () => {
+      if (!findSearchQuery.trim() || !user) {
+        setSearchResults([]);
+        return;
+      }
+
+      setSearchLoading(true);
+      try {
+        const results = await searchUsers(findSearchQuery, user.uid);
+        const resultsWithProfiles = await Promise.all(
+          results.map(async (result) => {
+            try {
+              const profile = await getUserProfile(result.id);
+              return {
+                ...result,
+                ...profile
+              };
+            } catch (error) {
+              console.error("Error fetching search result profile:", result.id, error);
+              return result;
+            }
+          })
+        );
+        setSearchResults(resultsWithProfiles);
+
+        // Check status for all results
+        const statusMap = new Set<string>();
+        for (const result of resultsWithProfiles) {
+          const isRequestSent = await checkIfFriendRequestSent(user.uid, result.id);
+          if (isRequestSent) {
+            statusMap.add(result.id);
+          }
+        }
+        setRequestSentUsers(statusMap);
+      } catch (error) {
+        console.error("Error searching users:", error);
+      } finally {
+        setSearchLoading(false);
+      }
+    };
+
+    const debounceTimer = setTimeout(performSearch, 300);
+    return () => clearTimeout(debounceTimer);
+  }, [findSearchQuery, user]);
+
   const handleUnfriend = async (friendId: string) => {
     if (user) {
       await unfriend(user.uid, friendId);
@@ -371,6 +537,19 @@ export default function FriendsPage() {
         setPendingRequests(prev => prev.filter(r => r.id !== senderId));
         toast({ title: 'Friend Request Declined', description: 'You have declined the friend request.' });
       }
+  }
+
+  const handleAddFriend = async (userId: string) => {
+    if (user) {
+      try {
+        await sendFriendRequest(user.uid, userId);
+        setRequestSentUsers(prev => new Set([...prev, userId]));
+        toast({ title: 'Friend Request Sent', description: 'Your friend request has been sent.' });
+      } catch (error) {
+        console.error("Error sending friend request:", error);
+        toast({ title: 'Error', description: 'Failed to send friend request.' });
+      }
+    }
   }
 
   const handleAvatarClick = (userId: string) => {
@@ -481,7 +660,7 @@ export default function FriendsPage() {
                             value="find" 
                             className="relative z-10 data-[state=active]:text-black transition-colors"
                         >
-                            Find
+                            Find Friends
                         </TabsTrigger>
                         <motion.div
                             className="absolute inset-y-1 bg-gradient-to-r from-[#ffa600] via-[#ff9500] to-[#ffa600] rounded-md shadow-md shadow-[#ffa600]/20"
@@ -573,7 +752,26 @@ export default function FriendsPage() {
                                                 className="pl-10 border-[#ffa600]/30 focus:ring-[#ffa600] focus:border-[#ffa600]"
                                             />
                                         </div>
-                                        <FindFriends searchQuery={findSearchQuery} />
+                                        <div className="grid gap-3">
+                                            {searchLoading ? (
+                                                <p className="text-sm text-muted-foreground text-center py-8">Searching...</p>
+                                            ) : searchResults.length > 0 ? (
+                                                searchResults.map(result => (
+                                                    <SearchResultCard 
+                                                        key={result.id}
+                                                        user={result}
+                                                        onAddFriend={handleAddFriend}
+                                                        isRequestSent={requestSentUsers.has(result.id)}
+                                                        isFriend={friends.some(f => f.id === result.id)}
+                                                        onAvatarClick={handleAvatarClick}
+                                                    />
+                                                ))
+                                            ) : findSearchQuery.trim() ? (
+                                                <p className="text-sm text-muted-foreground text-center py-8">No users found. Try a different search.</p>
+                                            ) : (
+                                                <p className="text-sm text-muted-foreground text-center py-8">Enter a name or username to search.</p>
+                                            )}
+                                        </div>
                                     </CardContent>
                                 </Card>
                             </TabsContent>

@@ -67,12 +67,16 @@ export const SHOP_ITEMS = {
     { name: 'Roboto Mono', value: 'Roboto Mono, monospace', price: 20, type: 'font' },
     { name: 'Lobster', value: 'Lobster, cursive', price: 35, type: 'font' },
   ],
+  effects: [
+    { name: 'Swirling Dragon', value: 'swirling-dragon', price: 500, type: 'effect' }
+  ]
 } as const;
 
 export type ShopItem = typeof SHOP_ITEMS.colors[0] | 
                        typeof SHOP_ITEMS.gradients[0] | 
                        typeof SHOP_ITEMS.movingGradients[0] | 
-                       typeof SHOP_ITEMS.fonts[0];
+                       typeof SHOP_ITEMS.fonts[0] |
+                       typeof SHOP_ITEMS.effects[0];
 
 export const DEFAULT_NAME_STYLE = {
   color: '#ff990a',
