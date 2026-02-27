@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { PT_Sans } from 'next/font/google';
 import { ReactNode } from 'react';
+import Script from 'next/script';   // ✅ ADD THIS
 import './globals.css';
 import { cn } from '@/lib/utils';
 import { Toaster } from '@/components/ui/toaster';
@@ -20,6 +21,17 @@ const ptSans = PT_Sans({
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
+
+      {/* ✅ ADD THIS HEAD BLOCK */}
+      <head>
+        <Script
+          async
+          src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3645158319821683"
+          crossOrigin="anonymous"
+          strategy="afterInteractive"
+        />
+      </head>
+
       <body className={cn('min-h-screen bg-background font-sans antialiased', ptSans.className)}>
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
           <AuthProvider>
