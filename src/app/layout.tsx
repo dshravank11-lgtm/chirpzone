@@ -22,7 +22,6 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
 
-      {/* ✅ ADD THIS HEAD BLOCK */}
       <head>
         <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3645158319821683"
      crossorigin="anonymous"></script>
