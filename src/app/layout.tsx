@@ -24,12 +24,8 @@ export default function RootLayout({ children }: { children: ReactNode }) {
 
       {/* ✅ ADD THIS HEAD BLOCK */}
       <head>
-        <Script
-          async
-          src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3645158319821683"
-          crossOrigin="anonymous"
-          strategy="afterInteractive"
-        />
+        <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3645158319821683"
+     crossorigin="anonymous"></script>
       </head>
 
       <body className={cn('min-h-screen bg-background font-sans antialiased', ptSans.className)}>
