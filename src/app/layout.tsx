@@ -25,6 +25,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       <head>
         <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3645158319821683"
      crossorigin="anonymous"></script>
+        <meta name="google-adsense-account" content="ca-pub-3645158319821683">
       </head>
 
       <body className={cn('min-h-screen bg-background font-sans antialiased', ptSans.className)}>
