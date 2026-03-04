@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
@@ -7,9 +6,9 @@ import { CreatePost } from '@/components/create-post';
 import { PostCard, type Post } from '@/components/post-card';
 import { WelcomeModal } from '@/components/WelcomeModal';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card';
-import { Flame, MoreHorizontal, Filter, X } from 'lucide-react';
+import { Flame } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { collection, query, orderBy, limit, onSnapshot, startAfter, getDocs, doc } from 'firebase/firestore';
+import { collection, query, orderBy, limit, onSnapshot, startAfter, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/hooks/use-auth';
@@ -18,6 +17,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { useToast } from '@/components/ui/use-toast';
 import { PatchNotes } from '@/components/PatchNotes';
 import { ReportDialog } from '@/components/report-button';
+import AdUnit from '@/components/AdUnit';
 
 const StreakCard = ({ streak }: { streak: number }) => (
   <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }}>
@@ -45,28 +45,28 @@ const StreakCard = ({ streak }: { streak: number }) => (
 );
 
 const PostSkeleton = () => (
-    <div className="space-y-6">
-        {[...Array(3)].map((_, i) => (
-            <Card className="border-border/50 shadow-lg" key={i}>
-                <CardHeader className="flex gap-4 p-4">
-                    <Skeleton className="h-12 w-12 rounded-full" />
-                    <div className="space-y-2 flex-1">
-                        <Skeleton className="h-4 w-[250px]" />
-                        <Skeleton className="h-4 w-[200px]" />
-                    </div>
-                </CardHeader>
-                <CardContent className="space-y-2 px-6">
-                    <Skeleton className="h-4 w-full" />
-                    <Skeleton className="h-4 w-5/6" />
-                </CardContent>
-                <CardFooter className="flex justify-around border-t p-2">
-                    <Skeleton className="h-8 w-24" />
-                    <Skeleton className="h-8 w-24" />
-                    <Skeleton className="h-8 w-24" />
-                </CardFooter>
-            </Card>
-        ))}
-    </div>
+  <div className="space-y-6">
+    {[...Array(3)].map((_, i) => (
+      <Card className="border-border/50 shadow-lg" key={i}>
+        <CardHeader className="flex gap-4 p-4">
+          <Skeleton className="h-12 w-12 rounded-full" />
+          <div className="space-y-2 flex-1">
+            <Skeleton className="h-4 w-[250px]" />
+            <Skeleton className="h-4 w-[200px]" />
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-2 px-6">
+          <Skeleton className="h-4 w-full" />
+          <Skeleton className="h-4 w-5/6" />
+        </CardContent>
+        <CardFooter className="flex justify-around border-t p-2">
+          <Skeleton className="h-8 w-24" />
+          <Skeleton className="h-8 w-24" />
+          <Skeleton className="h-8 w-24" />
+        </CardFooter>
+      </Card>
+    ))}
+  </div>
 );
 
 export default function HomePage() {
@@ -124,17 +124,17 @@ export default function HomePage() {
     );
 
     try {
-        const snap = await getDocs(postQuery);
-        const newPosts = snap.docs.map(d => ({ id: d.id, ...d.data() }) as Post);
-        
-        setPosts(prev => [...prev, ...newPosts]);
-        setLastDoc(snap.docs[snap.docs.length - 1]);
-        setHasMore(snap.docs.length === POSTS_PER_PAGE);
-    } catch(err) {
-        console.error("Failed to load more posts", err);
-        toast({ title: 'Error', description: 'Failed to load more posts.', variant: 'destructive' });
+      const snap = await getDocs(postQuery);
+      const newPosts = snap.docs.map(d => ({ id: d.id, ...d.data() }) as Post);
+
+      setPosts(prev => [...prev, ...newPosts]);
+      setLastDoc(snap.docs[snap.docs.length - 1]);
+      setHasMore(snap.docs.length === POSTS_PER_PAGE);
+    } catch (err) {
+      console.error("Failed to load more posts", err);
+      toast({ title: 'Error', description: 'Failed to load more posts.', variant: 'destructive' });
     } finally {
-        setIsLoadingMore(false);
+      setIsLoadingMore(false);
     }
   }, [hasMore, isLoadingMore, lastDoc]);
 
@@ -150,7 +150,6 @@ export default function HomePage() {
 
     if (node) observer.current.observe(node);
   }, [isLoadingMore, hasMore, loadMorePosts]);
-
 
   const handleReport = (postId: string) => {
     setReportingPostId(postId);
@@ -170,7 +169,7 @@ export default function HomePage() {
         <div className="space-y-6 pb-8">
           {user && <StreakCard streak={user.streak || 0} />}
           <CreatePost onPostCreated={newPost => setPosts(prev => [newPost, ...prev])} />
-          
+
           {loading || authLoading ? <PostSkeleton /> : (
             <AnimatePresence>
               {posts.map((p, index) => (
@@ -181,34 +180,35 @@ export default function HomePage() {
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -20 }}
                 >
-                  <PostCard 
-                    post={p} 
-                    currentUserId={user?.uid || ''} 
-                    onReport={handleReport} 
-                    onPostDeleted={onPostDeleted} 
+                  <PostCard
+                    post={p}
+                    currentUserId={user?.uid || ''}
+                    onReport={handleReport}
+                    onPostDeleted={onPostDeleted}
                   />
+
+                  {/* Insert Ad every 5 posts */}
+                  {index % 5 === 4 && <AdUnit />}
                 </motion.div>
               ))}
             </AnimatePresence>
           )}
 
           {isLoadingMore && <PostSkeleton />}
-          
+
           {!isLoadingMore && !hasMore && (
             <div className="text-center text-muted-foreground py-8">
               <p>You've reached the end of the feed!</p>
             </div>
           )}
-          
-          {/* Fallback button */}
+
           {hasMore && !isLoadingMore && (
-             <div className="text-center">
-                <Button onClick={loadMorePosts} variant="outline">
-                    Load More
-                </Button>
+            <div className="text-center">
+              <Button onClick={loadMorePosts} variant="outline">
+                Load More
+              </Button>
             </div>
           )}
-
         </div>
       </PageTransition>
 
