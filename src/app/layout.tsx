@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { PT_Sans } from 'next/font/google';
 import { ReactNode } from 'react';
-import Script from 'next/script';   // ✅ ADD THIS
+import Script from 'next/script';
 import './globals.css';
 import { cn } from '@/lib/utils';
 import { Toaster } from '@/components/ui/toaster';
@@ -21,12 +21,27 @@ const ptSans = PT_Sans({
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
-
       <head>
-        <meta name="google-adsense-account" content="ca-pub-3645158319821683">
+        <meta
+          name="google-adsense-account"
+          content="ca-pub-3645158319821683"
+        />
       </head>
 
-      <body className={cn('min-h-screen bg-background font-sans antialiased', ptSans.className)}>
+      <body
+        className={cn(
+          'min-h-screen bg-background font-sans antialiased',
+          ptSans.className
+        )}
+      >
+        {/* Load AdSense script globally */}
+        <Script
+          async
+          strategy="afterInteractive"
+          src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3645158319821683"
+          crossOrigin="anonymous"
+        />
+
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
           <AuthProvider>
             {children}
